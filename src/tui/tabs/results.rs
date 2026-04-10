@@ -112,12 +112,23 @@ impl ResultsTab {
         results: &[AlertResult],
         seen_ids: &std::collections::HashSet<String>,
     ) {
+        let flat = Self::flatten(results);
+
+        let max_title_len = flat.iter()
+            .map(|entry| {
+                let listing = &results[entry.result_idx].listings[entry.listing_idx];
+                let price_len = listing.price.map(|p| format!("${:.0} ", p).len()).unwrap_or(0);
+                listing.title.len() + price_len + 4
+            })
+            .max()
+            .unwrap_or(20);
+        let sidebar_width = (max_title_len as u16 + 4).min(area.width / 2);
+
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Max(40), Constraint::Min(40)])
+            .constraints([Constraint::Length(sidebar_width), Constraint::Min(30)])
             .split(area);
 
-        let flat = Self::flatten(results);
         self.render_list(frame, chunks[0], theme, results, &flat, seen_ids);
         self.render_detail(frame, chunks[1], theme, results, &flat);
     }

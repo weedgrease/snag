@@ -14,6 +14,7 @@ pub struct AlertsTab {
     pub listing_selected: usize,
     pub listing_state: ListState,
     pub listing_focus: bool,
+    pub listing_count: usize,
 }
 
 impl Default for AlertsTab {
@@ -34,6 +35,7 @@ impl AlertsTab {
             listing_selected: 0,
             listing_state,
             listing_focus: false,
+            listing_count: 0,
         }
     }
 
@@ -49,8 +51,10 @@ impl AlertsTab {
                     }
                 }
                 KeyCode::Down | KeyCode::Char('j') => {
-                    self.listing_selected = self.listing_selected.saturating_add(1);
-                    self.listing_state.select(Some(self.listing_selected));
+                    if self.listing_count > 0 && self.listing_selected < self.listing_count - 1 {
+                        self.listing_selected += 1;
+                        self.listing_state.select(Some(self.listing_selected));
+                    }
                 }
                 KeyCode::Enter => {
                     return Some(AlertsAction::ViewListing(self.selected, self.listing_selected));
@@ -117,10 +121,15 @@ impl AlertsTab {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
+    pub fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
+        let max_name_len = config.alerts.iter()
+            .map(|a| a.name.len())
+            .max()
+            .unwrap_or(10);
+        let sidebar_width = (max_name_len as u16 + 6).min(area.width / 2);
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Max(30), Constraint::Min(40)])
+            .constraints([Constraint::Length(sidebar_width), Constraint::Min(30)])
             .split(area);
 
         self.render_list(frame, chunks[0], theme, config);
@@ -170,7 +179,7 @@ impl AlertsTab {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn render_detail(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
+    fn render_detail(&mut self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
         let block = Block::default()
             .title(Span::styled(
                 " Details ",
@@ -381,6 +390,7 @@ impl AlertsTab {
             .filter(|r| r.alert_id == alert.id)
             .flat_map(|r| r.listings.iter())
             .collect();
+        self.listing_count = alert_listings.len();
 
         let listings_area = chunks[3];
         if listings_area.height > 1 {

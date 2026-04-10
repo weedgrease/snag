@@ -372,6 +372,12 @@ impl Marketplace for FacebookMarketplace {
                 .marketplace_listing_description
                 .and_then(|d| d.text);
 
+            log::debug!(target: "snag::facebook", "Listing '{}': price={:?}, description={:?}",
+                title,
+                price,
+                description.as_ref().map(|d| if d.len() > 50 { &d[..50] } else { d.as_str() })
+            );
+
             let url = format!("https://www.facebook.com/marketplace/item/{}/", id);
 
             listings.push(Listing {

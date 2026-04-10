@@ -476,7 +476,7 @@ impl App {
         }
     }
 
-    fn render(&self, frame: &mut Frame) {
+    fn render(&mut self, frame: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -554,7 +554,7 @@ impl App {
             TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce [l]istings [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
             TabKind::Settings => "[Enter] edit/toggle [↑↓] navigate [q]uit",
-            TabKind::Logs => "[↑↓] scroll [Space] toggle [+/-] level [h]ide [f]ocus [q]uit",
+            TabKind::Logs => "[↑↓] scroll [Space] toggle [h]ide [f]ocus [q]uit",
         };
 
         let bar = Paragraph::new(Line::from(vec![

@@ -15,6 +15,7 @@ fn save_and_load_config_round_trips() {
             default_max_results: Some(20),
             default_notifier: NotifierKind::Terminal,
             check_for_updates: true,
+            default_location: None,
         },
         alerts: vec![
             Alert {
@@ -80,4 +81,26 @@ fn save_config_creates_parent_directories() {
     save_config(&config, &config_path).unwrap();
 
     assert!(config_path.exists());
+}
+
+#[test]
+fn config_with_default_location_round_trips() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("config.toml");
+
+    let config = AppConfig {
+        settings: GlobalSettings {
+            default_check_interval: Duration::from_secs(300),
+            default_max_results: Some(20),
+            default_notifier: NotifierKind::Terminal,
+            check_for_updates: true,
+            default_location: Some("Denver, CO".into()),
+        },
+        alerts: vec![],
+    };
+
+    save_config(&config, &config_path).unwrap();
+    let loaded = load_config(&config_path).unwrap();
+
+    assert_eq!(loaded.settings.default_location, Some("Denver, CO".into()));
 }

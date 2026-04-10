@@ -14,7 +14,8 @@ const FIELD_CHECK_INTERVAL: usize = 0;
 const FIELD_MAX_RESULTS: usize = 1;
 const FIELD_NOTIFICATION: usize = 2;
 const FIELD_CHECK_UPDATES: usize = 3;
-const FIELD_COUNT: usize = 4;
+const FIELD_DEFAULT_LOCATION: usize = 4;
+const FIELD_COUNT: usize = 5;
 
 pub struct SettingsTab {
     pub selected: usize,
@@ -130,6 +131,11 @@ impl SettingsTab {
                 .default_max_results
                 .map(|m| m.to_string())
                 .unwrap_or_default(),
+            FIELD_DEFAULT_LOCATION => config
+                .settings
+                .default_location
+                .clone()
+                .unwrap_or_default(),
             _ => String::new(),
         }
     }
@@ -148,6 +154,14 @@ impl SettingsTab {
                     config.settings.default_max_results = None;
                 } else if let Ok(max) = trimmed.parse::<u32>() {
                     config.settings.default_max_results = Some(max);
+                }
+            }
+            FIELD_DEFAULT_LOCATION => {
+                let trimmed = self.edit_buffer.trim().to_string();
+                if trimmed.is_empty() {
+                    config.settings.default_location = None;
+                } else {
+                    config.settings.default_location = Some(trimmed);
                 }
             }
             _ => {}
@@ -244,12 +258,18 @@ impl SettingsTab {
         } else {
             "Disabled"
         };
+        let location_val = config
+            .settings
+            .default_location
+            .clone()
+            .unwrap_or_else(|| "not set".into());
 
         let fields = [
             ("Check interval (s)", interval_val),
             ("Max results", max_val),
             ("Notification", notifier_val),
             ("Check for updates", updates_val.to_string()),
+            ("Default location", location_val),
         ];
 
         let mut lines = vec![

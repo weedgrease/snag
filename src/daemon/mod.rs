@@ -92,7 +92,7 @@ async fn run_scheduler(config_path: &Path, results_path: &Path) -> Result<()> {
                         continue;
                     }
 
-                    if let Err(e) = check_alert(alert, results_path, None).await {
+                    if let Err(e) = check_alert(alert, results_path, config.settings.default_location.as_deref()).await {
                         error!("failed to check alert '{}': {e}", alert.name);
                     }
 
@@ -185,7 +185,7 @@ pub async fn check_once_with_paths(config_path: &Path, results_path: &Path) -> R
             continue;
         }
 
-        check_alert(alert, results_path, None).await?;
+        check_alert(alert, results_path, config.settings.default_location.as_deref()).await?;
     }
 
     Ok(())

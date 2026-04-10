@@ -24,6 +24,8 @@ pub struct GlobalSettings {
     pub default_notifier: NotifierKind,
     #[serde(default = "default_true")]
     pub check_for_updates: bool,
+    #[serde(default)]
+    pub default_location: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -34,6 +36,7 @@ impl Default for AppConfig {
                 default_max_results: Some(20),
                 default_notifier: NotifierKind::Terminal,
                 check_for_updates: true,
+                default_location: None,
             },
             alerts: vec![],
         }

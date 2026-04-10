@@ -17,6 +17,7 @@ async fn check_once_runs_without_error_for_enabled_alerts() {
             default_max_results: Some(20),
             default_notifier: NotifierKind::Terminal,
             check_for_updates: true,
+            default_location: None,
         },
         alerts: vec![Alert {
             id: Uuid::new_v4(),
@@ -60,6 +61,7 @@ async fn check_once_skips_disabled_alerts() {
             default_max_results: Some(20),
             default_notifier: NotifierKind::Terminal,
             check_for_updates: true,
+            default_location: None,
         },
         alerts: vec![Alert {
             id: Uuid::new_v4(),

@@ -2125,6 +2125,7 @@ dependencies = [
  "open",
  "ratatui",
  "reqwest",
+ "semver",
  "serde",
  "serde_json",
  "tempfile",

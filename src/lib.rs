@@ -4,3 +4,4 @@ pub mod marketplace;
 pub mod notifier;
 pub mod tui;
 pub mod types;
+pub mod update;

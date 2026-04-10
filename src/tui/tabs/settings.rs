@@ -1,6 +1,6 @@
 use crate::config::AppConfig;
 use crate::tui::theme::Theme;
-use crate::types::NotifierKind;
+use crate::types::{LogLevel, NotifierKind};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -15,7 +15,8 @@ const FIELD_MAX_RESULTS: usize = 1;
 const FIELD_NOTIFICATION: usize = 2;
 const FIELD_CHECK_UPDATES: usize = 3;
 const FIELD_DEFAULT_LOCATION: usize = 4;
-const FIELD_COUNT: usize = 5;
+const FIELD_LOG_LEVEL: usize = 5;
+const FIELD_COUNT: usize = 6;
 
 pub struct SettingsTab {
     pub selected: usize,
@@ -86,6 +87,14 @@ impl SettingsTab {
                     FIELD_NOTIFICATION => {
                         config.settings.default_notifier = match config.settings.default_notifier {
                             NotifierKind::Terminal => NotifierKind::Terminal,
+                        };
+                        return Some(SettingsAction::ConfigChanged);
+                    }
+                    FIELD_LOG_LEVEL => {
+                        config.settings.log_level = match config.settings.log_level {
+                            LogLevel::Info => LogLevel::Debug,
+                            LogLevel::Debug => LogLevel::Error,
+                            LogLevel::Error => LogLevel::Info,
                         };
                         return Some(SettingsAction::ConfigChanged);
                     }
@@ -263,6 +272,7 @@ impl SettingsTab {
             .default_location
             .clone()
             .unwrap_or_else(|| "not set".into());
+        let log_level_val = config.settings.log_level.to_string();
 
         let fields = [
             ("Check interval (s)", interval_val),
@@ -270,6 +280,7 @@ impl SettingsTab {
             ("Notification", notifier_val),
             ("Check for updates", updates_val.to_string()),
             ("Default location", location_val),
+            ("Log level", log_level_val),
         ];
 
         let mut lines = vec![

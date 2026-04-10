@@ -30,11 +30,13 @@ pub struct App {
     pub alerts_tab: AlertsTab,
     pub results_tab: ResultsTab,
     pub settings_tab: SettingsTab,
+    pub logs_tab: crate::tui::tabs::logs::LogsTab,
     pub should_quit: bool,
     pub active_dialog: Option<ActiveDialog>,
     pub update_info: Option<crate::update::UpdateInfo>,
     update_rx: Option<tokio::sync::oneshot::Receiver<Option<crate::update::UpdateInfo>>>,
     scheduler_rx: Option<tokio::sync::mpsc::Receiver<crate::scheduler::SchedulerEvent>>,
+    log_rx: Option<tokio::sync::mpsc::Receiver<crate::types::LogEntry>>,
     config_tx: Option<tokio::sync::watch::Sender<AppConfig>>,
     _scheduler_lock: Option<std::fs::File>,
     last_results_mtime: Option<std::time::SystemTime>,
@@ -65,20 +67,23 @@ impl App {
             .flat_map(|r| r.listings.iter().map(|l| l.id.clone()))
             .collect();
 
-        let (scheduler_rx, config_tx, scheduler_lock) =
+        let (scheduler_rx, config_tx, scheduler_lock, log_rx) =
             if let Some(lock) = crate::scheduler::try_acquire_scheduler_lock() {
                 let (event_tx, event_rx) =
                     tokio::sync::mpsc::channel::<crate::scheduler::SchedulerEvent>(64);
                 let (cfg_tx, cfg_rx) = tokio::sync::watch::channel(config.clone());
-                let (log_tx, _log_rx) =
+                let (log_tx, log_rx) =
                     tokio::sync::mpsc::channel::<crate::types::LogEntry>(200);
                 let scheduler =
                     crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids, log_tx);
                 tokio::spawn(scheduler.run());
-                (Some(event_rx), Some(cfg_tx), Some(lock))
+                (Some(event_rx), Some(cfg_tx), Some(lock), Some(log_rx))
             } else {
-                (None, None, None)
+                (None, None, None, None)
             };
+
+        let mut logs_tab = crate::tui::tabs::logs::LogsTab::new();
+        logs_tab.scheduler_active = scheduler_rx.is_some();
 
         let update_rx = if config.settings.check_for_updates {
             let (tx, rx) = tokio::sync::oneshot::channel();
@@ -103,11 +108,13 @@ impl App {
             alerts_tab: AlertsTab::new(),
             results_tab: ResultsTab::new(),
             settings_tab: SettingsTab::new(),
+            logs_tab,
             should_quit: false,
             active_dialog: None,
             update_info: None,
             update_rx,
             scheduler_rx,
+            log_rx,
             config_tx,
             _scheduler_lock: scheduler_lock,
             last_results_mtime: None,
@@ -150,6 +157,8 @@ impl App {
                         self.active_tab = TabKind::Results;
                     } else if key.code == KeyCode::Char('3') {
                         self.active_tab = TabKind::Settings;
+                    } else if key.code == KeyCode::Char('4') {
+                        self.active_tab = TabKind::Logs;
                     } else {
                         match self.active_tab {
                             TabKind::Alerts => {
@@ -208,6 +217,9 @@ impl App {
                                         let _ = tx.send(self.config.clone());
                                     }
                                 }
+                            }
+                            TabKind::Logs => {
+                                self.logs_tab.handle_key(key);
                             }
                         }
                     }
@@ -271,6 +283,12 @@ impl App {
                 }
 
                 last_results_refresh = Instant::now();
+            }
+
+            if let Some(ref mut rx) = self.log_rx {
+                while let Ok(entry) = rx.try_recv() {
+                    self.logs_tab.push(entry);
+                }
             }
 
             if let Some(ref mut rx) = self.update_rx
@@ -380,6 +398,7 @@ impl App {
             TabKind::Alerts => self.alerts_tab.render(frame, chunks[1], &self.theme, &self.config, &self.statuses),
             TabKind::Results => self.results_tab.render(frame, chunks[1], &self.theme, &self.results),
             TabKind::Settings => self.settings_tab.render(frame, chunks[1], &self.theme, &self.config),
+            TabKind::Logs => self.logs_tab.render(frame, chunks[1], &self.theme),
         }
 
         self.render_status_bar(frame, chunks[2]);
@@ -440,11 +459,12 @@ impl App {
             TabKind::Alerts => "[n]ew [e]dit [d]elete [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
             TabKind::Settings => "[r]estart [s]top daemon [q]uit",
+            TabKind::Logs => "[↑↓] scroll [G] bottom [c] clear [q]uit",
         };
 
         let bar = Paragraph::new(Line::from(vec![
             Span::styled(
-                " Tab/1-3 ",
+                " Tab/1-4 ",
                 Style::default()
                     .fg(self.theme.status_bar_fg)
                     .bg(self.theme.accent),

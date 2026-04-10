@@ -268,7 +268,7 @@ impl AlertsTab {
 fn detail_line<'a>(label: &'a str, value: &'a str, theme: &Theme) -> Line<'a> {
     Line::from(vec![
         Span::styled(
-            format!("{:<10}", label),
+            format!("{:<16}", label),
             Style::default().fg(theme.fg_dim),
         ),
         Span::styled(value, Style::default().fg(theme.fg)),

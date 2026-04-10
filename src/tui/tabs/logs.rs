@@ -56,7 +56,7 @@ impl LogsTab {
                 KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown => {
                     self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey);
                 }
-                KeyCode::Esc | KeyCode::Enter => {
+                KeyCode::Esc => {
                     self.selector_focused = true;
                 }
                 KeyCode::Char('f') => {

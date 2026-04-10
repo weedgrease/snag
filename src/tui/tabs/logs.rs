@@ -60,6 +60,10 @@ impl LogsTab {
                     self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey);
                 }
                 KeyCode::Esc => {
+                    if self.target_selected {
+                        self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
+                        self.target_selected = false;
+                    }
                     self.selector_focused = true;
                 }
                 _ => {}

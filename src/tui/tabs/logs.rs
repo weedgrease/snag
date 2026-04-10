@@ -40,7 +40,7 @@ impl LogsTab {
                 KeyCode::Right => {
                     self.state.transition(tui_logger::TuiWidgetEvent::RightKey);
                 }
-                KeyCode::Char('f') => {
+                KeyCode::Enter => {
                     self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
                 }
                 KeyCode::Esc => {
@@ -58,9 +58,6 @@ impl LogsTab {
                 }
                 KeyCode::Esc => {
                     self.selector_focused = true;
-                }
-                KeyCode::Char('f') => {
-                    self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
                 }
                 _ => {}
             }

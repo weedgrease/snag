@@ -2121,6 +2121,7 @@ dependencies = [
  "crossterm",
  "directories",
  "fs2",
+ "libc",
  "open",
  "ratatui",
  "reqwest",

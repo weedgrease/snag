@@ -1,4 +1,6 @@
 use crate::config::{self, AppConfig, load_config, save_config};
+#[allow(unused_imports)]
+use libc;
 use crate::daemon::results::{load_results, results_path};
 use crate::tui::dialogs::alert_form::AlertFormDialog;
 use crate::tui::dialogs::confirm::ConfirmDialog;
@@ -145,7 +147,49 @@ impl App {
                                 }
                             }
                             TabKind::Settings => {
-                                self.settings_tab.handle_key(key, &mut self.config);
+                                if let Some(action) = self.settings_tab.handle_key(key, &mut self.config) {
+                                    match action {
+                                        crate::tui::tabs::settings::SettingsAction::ConfigChanged => {
+                                            let _ = save_config(&self.config, &self.config_path);
+                                        }
+                                        crate::tui::tabs::settings::SettingsAction::StopDaemon => {
+                                            let pid_path = config::data_dir().join("daemon.pid");
+                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
+                                                if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                                                    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+                                                }
+                                            }
+                                        }
+                                        crate::tui::tabs::settings::SettingsAction::RestartDaemon => {
+                                            let pid_path = config::data_dir().join("daemon.pid");
+                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
+                                                if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                                                    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+                                                }
+                                            }
+                                            if let Ok(exe) = std::env::current_exe() {
+                                                std::process::Command::new(exe)
+                                                    .arg("daemon")
+                                                    .stdin(std::process::Stdio::null())
+                                                    .stdout(std::process::Stdio::null())
+                                                    .stderr(std::process::Stdio::null())
+                                                    .spawn()
+                                                    .ok();
+                                            }
+                                        }
+                                        crate::tui::tabs::settings::SettingsAction::StartDaemon => {
+                                            if let Ok(exe) = std::env::current_exe() {
+                                                std::process::Command::new(exe)
+                                                    .arg("daemon")
+                                                    .stdin(std::process::Stdio::null())
+                                                    .stdout(std::process::Stdio::null())
+                                                    .stderr(std::process::Stdio::null())
+                                                    .spawn()
+                                                    .ok();
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

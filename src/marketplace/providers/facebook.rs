@@ -1,20 +1,232 @@
 use crate::marketplace::Marketplace;
-use crate::types::{Alert, FilterKind, Listing, MarketplaceKind};
-use anyhow::Result;
+use crate::types::{Alert, Condition, FilterKind, Listing, MarketplaceKind};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
+use chrono::Utc;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::sync::Mutex;
 
-pub struct FacebookMarketplace;
+const GRAPHQL_URL: &str = "https://www.facebook.com/api/graphql/";
+const LOCATION_DOC_ID: &str = "5585904654783609";
+const SEARCH_DOC_ID: &str = "7111939778879383";
 
-impl FacebookMarketplace {
-    pub fn new() -> Self {
-        Self
-    }
+pub struct FacebookMarketplace {
+    client: reqwest::Client,
+    location_cache: Mutex<HashMap<String, (f64, f64)>>,
 }
 
 impl Default for FacebookMarketplace {
     fn default() -> Self {
         Self::new()
     }
+}
+
+impl FacebookMarketplace {
+    pub fn new() -> Self {
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .build()
+            .expect("failed to build HTTP client");
+
+        Self {
+            client,
+            location_cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    async fn resolve_location(&self, query: &str) -> Result<(f64, f64)> {
+        if let Some(cached) = self.location_cache.lock().unwrap().get(query) {
+            return Ok(*cached);
+        }
+
+        let variables = serde_json::json!({
+            "params": {
+                "caller": "MARKETPLACE",
+                "page_category": ["CITY", "SUBCITY", "NEIGHBORHOOD", "POSTAL_CODE"],
+                "query": query
+            }
+        });
+
+        let response = self
+            .client
+            .post(GRAPHQL_URL)
+            .header("sec-fetch-site", "same-origin")
+            .form(&[
+                ("variables", serde_json::to_string(&variables)?),
+                ("doc_id", LOCATION_DOC_ID.to_string()),
+            ])
+            .send()
+            .await
+            .context("failed to fetch location")?
+            .error_for_status()
+            .context("location request failed")?;
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .context("failed to parse location response")?;
+
+        let locations = body
+            .pointer("/data/city_street_search/street_results/edges")
+            .and_then(|v| v.as_array())
+            .context("unexpected location response structure")?;
+
+        let node = locations
+            .first()
+            .and_then(|edge| edge.get("node"))
+            .context("no locations found")?;
+
+        let lat = node
+            .get("latitude")
+            .and_then(|v| v.as_f64())
+            .context("missing latitude")?;
+
+        let lng = node
+            .get("longitude")
+            .and_then(|v| v.as_f64())
+            .context("missing longitude")?;
+
+        self.location_cache
+            .lock()
+            .unwrap()
+            .insert(query.to_string(), (lat, lng));
+
+        Ok((lat, lng))
+    }
+
+    fn build_search_variables(
+        &self,
+        alert: &Alert,
+        lat: f64,
+        lng: f64,
+    ) -> serde_json::Value {
+        let mut filters = serde_json::Map::new();
+
+        filters.insert(
+            "commerce_search_and_rp_available".into(),
+            serde_json::json!({"name": "commerce_search_and_rp_available", "value": "true"}),
+        );
+
+        filters.insert(
+            "commerce_search_and_rp_condition".into(),
+            serde_json::json!({"name": "commerce_search_and_rp_condition", "value": alert.condition.map(|c| match c {
+                Condition::New => "new",
+                Condition::LikeNew => "used_like_new",
+                Condition::Used => "used_good",
+                Condition::ForParts => "used_fair",
+            }).unwrap_or("all")}),
+        );
+
+        if alert.price_min.is_some() || alert.price_max.is_some() {
+            let min = alert.price_min.unwrap_or(0.0) as i64;
+            let max = alert.price_max.unwrap_or(999_999_999.0) as i64;
+            filters.insert(
+                "commerce_search_and_rp_price_range".into(),
+                serde_json::json!({
+                    "name": "commerce_search_and_rp_price_range",
+                    "value": format!("{{\"currency\":\"USD\",\"min_price\":{},\"max_price\":{}}}", min * 100, max * 100)
+                }),
+            );
+        }
+
+        let radius_km = alert
+            .radius_miles
+            .map(|m| (m as f64 * 1.60934) as i64)
+            .unwrap_or(100);
+
+        let keywords = alert.keywords.join(" ");
+
+        serde_json::json!({
+            "count": 24,
+            "params": {
+                "bqf": {
+                    "callsite": "COMMERCE_MKTPLACE_WWW",
+                    "query": keywords
+                },
+                "browse_request_params": {
+                    "commerce_enable_local_pickup": true,
+                    "commerce_enable_shipping": true,
+                    "commerce_search_and_rp_available": true,
+                    "commerce_search_and_rp_condition": null,
+                    "filter_location_latitude": lat,
+                    "filter_location_longitude": lng,
+                    "filter_radius_kms": radius_km
+                },
+                "custom_request_params": serde_json::Value::Object(filters)
+            }
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct SearchResponse {
+    data: Option<SearchData>,
+}
+
+#[derive(Deserialize)]
+struct SearchData {
+    marketplace_search: Option<MarketplaceSearch>,
+}
+
+#[derive(Deserialize)]
+struct MarketplaceSearch {
+    feed_units: Option<FeedUnits>,
+}
+
+#[derive(Deserialize)]
+struct FeedUnits {
+    edges: Vec<FeedEdge>,
+}
+
+#[derive(Deserialize)]
+struct FeedEdge {
+    node: Option<FeedNode>,
+}
+
+#[derive(Deserialize)]
+struct FeedNode {
+    listing: Option<ListingNode>,
+}
+
+#[derive(Deserialize)]
+struct ListingNode {
+    id: Option<String>,
+    marketplace_listing_title: Option<String>,
+    listing_price: Option<ListingPrice>,
+    primary_listing_photo: Option<PrimaryPhoto>,
+    location: Option<LocationNode>,
+}
+
+#[derive(Deserialize)]
+struct ListingPrice {
+    amount: Option<String>,
+    currency: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PrimaryPhoto {
+    image: Option<ImageNode>,
+}
+
+#[derive(Deserialize)]
+struct ImageNode {
+    uri: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct LocationNode {
+    reverse_geocode: Option<ReverseGeocode>,
+}
+
+#[derive(Deserialize)]
+struct ReverseGeocode {
+    city_page: Option<CityPage>,
+}
+
+#[derive(Deserialize)]
+struct CityPage {
+    display_name: Option<String>,
 }
 
 #[async_trait]
@@ -31,12 +243,115 @@ impl Marketplace for FacebookMarketplace {
         &[
             FilterKind::PriceRange,
             FilterKind::Location,
-            FilterKind::Category,
+            FilterKind::Condition,
         ]
     }
 
-    async fn search(&self, _alert: &Alert, _default_location: Option<&str>) -> Result<Vec<Listing>> {
-        tracing::warn!("Facebook Marketplace search not yet implemented, returning empty results");
-        Ok(vec![])
+    async fn search(&self, alert: &Alert, default_location: Option<&str>) -> Result<Vec<Listing>> {
+        let location_query = alert
+            .location
+            .as_deref()
+            .or(default_location)
+            .context("no location set for Facebook Marketplace search")?;
+
+        let (lat, lng) = self.resolve_location(location_query).await?;
+
+        let variables = self.build_search_variables(alert, lat, lng);
+
+        let response = self
+            .client
+            .post(GRAPHQL_URL)
+            .header("sec-fetch-site", "same-origin")
+            .form(&[
+                ("variables", serde_json::to_string(&variables)?),
+                ("doc_id", SEARCH_DOC_ID.to_string()),
+            ])
+            .send()
+            .await
+            .context("failed to search Facebook Marketplace")?
+            .error_for_status()
+            .context("Facebook Marketplace search request failed")?;
+
+        let body: SearchResponse = response
+            .json()
+            .await
+            .context("failed to parse search response")?;
+
+        let edges = body
+            .data
+            .and_then(|d| d.marketplace_search)
+            .and_then(|ms| ms.feed_units)
+            .map(|fu| fu.edges)
+            .unwrap_or_default();
+
+        let now = Utc::now();
+        let exclude_lower: Vec<String> = alert
+            .exclude_keywords
+            .iter()
+            .map(|k| k.to_lowercase())
+            .collect();
+
+        let mut listings = vec![];
+
+        for edge in edges {
+            let node = match edge.node.and_then(|n| n.listing) {
+                Some(n) => n,
+                None => continue,
+            };
+
+            let id = match node.id {
+                Some(id) => id,
+                None => continue,
+            };
+
+            let title = node.marketplace_listing_title.unwrap_or_default();
+
+            let title_lower = title.to_lowercase();
+            if exclude_lower.iter().any(|kw| title_lower.contains(kw)) {
+                continue;
+            }
+
+            let price = node
+                .listing_price
+                .as_ref()
+                .and_then(|p| p.amount.as_ref())
+                .and_then(|a| a.parse::<f64>().ok())
+                .map(|cents| cents / 100.0);
+
+            let currency = node
+                .listing_price
+                .as_ref()
+                .and_then(|p| p.currency.clone())
+                .unwrap_or_else(|| "USD".into());
+
+            let image_url = node
+                .primary_listing_photo
+                .and_then(|p| p.image)
+                .and_then(|i| i.uri);
+
+            let location = node
+                .location
+                .and_then(|l| l.reverse_geocode)
+                .and_then(|r| r.city_page)
+                .and_then(|c| c.display_name);
+
+            let url = format!("https://www.facebook.com/marketplace/item/{}/", id);
+
+            listings.push(Listing {
+                id,
+                title,
+                price,
+                currency,
+                url,
+                image_url,
+                location,
+                condition: alert.condition,
+                marketplace: MarketplaceKind::FacebookMarketplace,
+                posted_at: None,
+                found_at: now,
+            });
+        }
+
+        Ok(listings)
     }
 }

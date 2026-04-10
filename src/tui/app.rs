@@ -70,8 +70,10 @@ impl App {
                 let (event_tx, event_rx) =
                     tokio::sync::mpsc::channel::<crate::scheduler::SchedulerEvent>(64);
                 let (cfg_tx, cfg_rx) = tokio::sync::watch::channel(config.clone());
+                let (log_tx, _log_rx) =
+                    tokio::sync::mpsc::channel::<crate::types::LogEntry>(200);
                 let scheduler =
-                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids);
+                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids, log_tx);
                 tokio::spawn(scheduler.run());
                 (Some(event_rx), Some(cfg_tx), Some(lock))
             } else {

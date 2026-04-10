@@ -1,7 +1,7 @@
 use crate::config::AppConfig;
 use crate::marketplace::create_marketplace;
 use crate::notifier::create_notifier;
-use crate::types::{Alert, AlertResult, CheckStatus, Listing};
+use crate::types::{Alert, AlertResult, CheckStatus, Listing, LogEntry};
 use anyhow::Result;
 use chrono::Utc;
 use fs2::FileExt;
@@ -57,12 +57,13 @@ pub async fn check_alert(
     alert: &Alert,
     existing_ids: &HashSet<String>,
     default_location: Option<&str>,
+    log_tx: &mpsc::Sender<LogEntry>,
 ) -> Result<(CheckStatus, Vec<Listing>)> {
     let mut all_listings = vec![];
 
     for marketplace_kind in &alert.marketplaces {
         let marketplace = create_marketplace(*marketplace_kind);
-        match marketplace.search(alert, default_location).await {
+        match marketplace.search(alert, default_location, log_tx).await {
             Ok(listings) => all_listings.extend(listings),
             Err(e) => {
                 error!(
@@ -104,6 +105,7 @@ pub struct Scheduler {
     config_rx: watch::Receiver<AppConfig>,
     last_check_times: HashMap<Uuid, Instant>,
     existing_ids: HashSet<String>,
+    log_tx: mpsc::Sender<LogEntry>,
 }
 
 impl Scheduler {
@@ -111,12 +113,14 @@ impl Scheduler {
         event_tx: mpsc::Sender<SchedulerEvent>,
         config_rx: watch::Receiver<AppConfig>,
         initial_existing_ids: HashSet<String>,
+        log_tx: mpsc::Sender<LogEntry>,
     ) -> Self {
         Self {
             event_tx,
             config_rx,
             last_check_times: HashMap::new(),
             existing_ids: initial_existing_ids,
+            log_tx,
         }
     }
 
@@ -144,7 +148,12 @@ impl Scheduler {
 
                 let default_loc = config.settings.default_location.as_deref();
 
-                match check_alert(alert, &self.existing_ids, default_loc).await {
+                let _ = self.log_tx.try_send(LogEntry::info(format!(
+                    "Checking alert: '{}'",
+                    alert.name
+                )));
+
+                match check_alert(alert, &self.existing_ids, default_loc, &self.log_tx).await {
                     Ok((status, new_listings)) => {
                         for listing in &new_listings {
                             self.existing_ids.insert(listing.id.clone());
@@ -155,7 +164,7 @@ impl Scheduler {
                         } else {
                             for notifier_kind in &alert.notifiers {
                                 let notifier = create_notifier(*notifier_kind);
-                                if let Err(e) = notifier.notify(alert, &new_listings).await {
+                                if let Err(e) = notifier.notify(alert, &new_listings, &self.log_tx).await {
                                     error!("notifier {} failed: {e}", notifier.name());
                                 }
                             }

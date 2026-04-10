@@ -1,11 +1,12 @@
 use crate::marketplace::Marketplace;
-use crate::types::{Alert, Condition, FilterKind, Listing, MarketplaceKind};
+use crate::types::{Alert, Condition, FilterKind, Listing, LogEntry, MarketplaceKind};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use tokio::sync::mpsc;
 
 const GRAPHQL_URL: &str = "https://www.facebook.com/api/graphql/";
 const LOCATION_DOC_ID: &str = "5585904654783609";
@@ -35,10 +36,17 @@ impl FacebookMarketplace {
         }
     }
 
-    async fn resolve_location(&self, query: &str) -> Result<(f64, f64)> {
+    async fn resolve_location(
+        &self,
+        query: &str,
+        log_tx: &mpsc::Sender<LogEntry>,
+    ) -> Result<(f64, f64)> {
         if let Some(cached) = self.location_cache.lock().unwrap().get(query) {
+            let _ = log_tx.try_send(LogEntry::debug(format!("Location cache hit: {}", query)));
             return Ok(*cached);
         }
+
+        let _ = log_tx.try_send(LogEntry::info(format!("Resolving location: {}", query)));
 
         let variables = serde_json::json!({
             "params": {
@@ -91,6 +99,11 @@ impl FacebookMarketplace {
             .lock()
             .unwrap()
             .insert(query.to_string(), (lat, lng));
+
+        let _ = log_tx.try_send(LogEntry::debug(format!(
+            "Location resolved: {} -> ({}, {})",
+            query, lat, lng
+        )));
 
         Ok((lat, lng))
     }
@@ -247,14 +260,24 @@ impl Marketplace for FacebookMarketplace {
         ]
     }
 
-    async fn search(&self, alert: &Alert, default_location: Option<&str>) -> Result<Vec<Listing>> {
+    async fn search(
+        &self,
+        alert: &Alert,
+        default_location: Option<&str>,
+        log_tx: &mpsc::Sender<LogEntry>,
+    ) -> Result<Vec<Listing>> {
         let location_query = alert
             .location
             .as_deref()
             .or(default_location)
             .context("no location set for Facebook Marketplace search")?;
 
-        let (lat, lng) = self.resolve_location(location_query).await?;
+        let (lat, lng) = self.resolve_location(location_query, log_tx).await?;
+
+        let _ = log_tx.try_send(LogEntry::info(format!(
+            "Searching Facebook Marketplace: '{}'",
+            alert.keywords.join(" ")
+        )));
 
         let variables = self.build_search_variables(alert, lat, lng);
 
@@ -351,6 +374,11 @@ impl Marketplace for FacebookMarketplace {
                 found_at: now,
             });
         }
+
+        let _ = log_tx.try_send(LogEntry::info(format!(
+            "Facebook returned {} listings",
+            listings.len()
+        )));
 
         Ok(listings)
     }

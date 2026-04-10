@@ -46,8 +46,16 @@ pub async fn run() -> Result<()> {
     let (event_tx, mut event_rx) = mpsc::channel::<SchedulerEvent>(64);
     let (config_tx, config_rx) = watch::channel(config.clone());
 
-    let scheduler = Scheduler::new(event_tx, config_rx, existing_ids);
+    let (log_tx, mut log_rx) = mpsc::channel::<crate::types::LogEntry>(200);
+
+    let scheduler = Scheduler::new(event_tx, config_rx, existing_ids, log_tx);
     tokio::spawn(scheduler.run());
+
+    tokio::spawn(async move {
+        while let Some(entry) = log_rx.recv().await {
+            tracing::info!("[{}] {}", entry.level, entry.message);
+        }
+    });
 
     let config_path_clone = config_path.clone();
     tokio::spawn(async move {
@@ -129,12 +137,14 @@ pub async fn check_once_with_paths(
         .flat_map(|r| r.listings.iter().map(|l| l.id.clone()))
         .collect();
 
+    let (log_tx, _log_rx) = mpsc::channel::<crate::types::LogEntry>(200);
+
     for alert in &config.alerts {
         if !alert.enabled {
             continue;
         }
 
-        match scheduler::check_alert(alert, &existing_ids, config.settings.default_location.as_deref()).await {
+        match scheduler::check_alert(alert, &existing_ids, config.settings.default_location.as_deref(), &log_tx).await {
             Ok((status, new_listings)) => {
                 upsert_status(&mut statuses, status);
                 if !new_listings.is_empty() {

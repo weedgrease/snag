@@ -1,7 +1,8 @@
 use crate::notifier::Notifier;
-use crate::types::{Alert, Listing, NotifierKind};
+use crate::types::{Alert, Listing, LogEntry, NotifierKind};
 use anyhow::Result;
 use async_trait::async_trait;
+use tokio::sync::mpsc;
 
 pub struct TerminalNotifier;
 
@@ -27,7 +28,17 @@ impl Notifier for TerminalNotifier {
         NotifierKind::Terminal
     }
 
-    async fn notify(&self, alert: &Alert, listings: &[Listing]) -> Result<()> {
+    async fn notify(
+        &self,
+        alert: &Alert,
+        listings: &[Listing],
+        log_tx: &mpsc::Sender<LogEntry>,
+    ) -> Result<()> {
+        let _ = log_tx.try_send(LogEntry::info(format!(
+            "Notifying: {} new listings for '{}'",
+            listings.len(),
+            alert.name,
+        )));
         for listing in listings {
             let price_str = listing
                 .price

@@ -2,6 +2,7 @@ pub mod config;
 pub mod daemon;
 pub mod marketplace;
 pub mod notifier;
+pub mod scheduler;
 pub mod tui;
 pub mod types;
 pub mod update;

@@ -74,10 +74,14 @@ pub async fn check_alert(
         }
     }
 
+    let total_fetched = all_listings.len();
     let new_listings: Vec<Listing> = all_listings
         .into_iter()
         .filter(|l| !existing_ids.contains(&l.id))
         .collect();
+
+    log::info!(target: "snag::scheduler", "Alert '{}': fetched {}, {} new (filtered {} duplicates)",
+        alert.name, total_fetched, new_listings.len(), total_fetched - new_listings.len());
 
     let new_listings = if let Some(max) = alert.max_results {
         if new_listings.len() > max as usize {

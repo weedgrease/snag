@@ -136,9 +136,10 @@ impl FacebookMarketplace {
         }).unwrap_or(serde_json::Value::Null);
 
         let keywords = alert.keywords.join(" ");
+        let count = alert.max_results.unwrap_or(24).min(100);
 
         serde_json::json!({
-            "count": 24,
+            "count": count,
             "params": {
                 "bqf": {
                     "callsite": "COMMERCE_MKTPLACE_WWW",

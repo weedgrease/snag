@@ -56,9 +56,6 @@ impl LogsTab {
                 KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown => {
                     self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey);
                 }
-                KeyCode::Esc => {
-                    self.state.transition(tui_logger::TuiWidgetEvent::EscapeKey);
-                }
                 KeyCode::Enter => {
                     self.selector_focused = true;
                 }
@@ -91,11 +88,17 @@ impl LogsTab {
                     .add_modifier(Modifier::BOLD),
             ));
 
+        let hl_style = if self.selector_focused {
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+
         let selector = tui_logger::TuiLoggerTargetWidget::default()
             .style_show(Style::default().fg(Color::White))
             .style_hide(Style::default().fg(Color::DarkGray))
             .style_off(Style::default().fg(Color::DarkGray))
-            .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            .highlight_style(hl_style)
             .block(selector_block)
             .state(&self.state);
         frame.render_widget(selector, chunks[0]);

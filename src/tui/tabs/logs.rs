@@ -42,8 +42,6 @@ impl LogsTab {
                 }
                 KeyCode::Enter => {
                     self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
-                }
-                KeyCode::Esc => {
                     self.selector_focused = false;
                 }
                 _ => {}

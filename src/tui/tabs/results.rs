@@ -89,7 +89,7 @@ impl ResultsTab {
                 if let Some(entry) = flat.get(self.selected) {
                     let listing = results[entry.result_idx].listings[entry.listing_idx].clone();
                     let alert_name = entry.alert_name.clone();
-                    return Some(ResultsAction::ViewListing(listing, alert_name));
+                    return Some(ResultsAction::ViewListing(Box::new(listing), alert_name));
                 }
             }
             KeyCode::Char('c') => {
@@ -114,7 +114,7 @@ impl ResultsTab {
     ) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .constraints([Constraint::Max(40), Constraint::Min(40)])
             .split(area);
 
         let flat = Self::flatten(results);
@@ -145,12 +145,6 @@ impl ResultsTab {
                     .map(|p| format!("${:.0} ", p))
                     .unwrap_or_default();
 
-                let title = if listing.title.len() > 25 {
-                    format!("{}…", &listing.title[..24])
-                } else {
-                    listing.title.clone()
-                };
-
                 let style = if i == self.selected {
                     Style::default().bg(theme.selected_bg).fg(theme.fg)
                 } else {
@@ -160,7 +154,7 @@ impl ResultsTab {
                 ListItem::new(Line::from(vec![
                     Span::styled(indicator, Style::default().fg(indicator_color)),
                     Span::styled(price_str, Style::default().fg(theme.accent)),
-                    Span::styled(title, style),
+                    Span::styled(listing.title.clone(), style),
                 ]))
             })
             .collect();
@@ -220,12 +214,16 @@ impl ResultsTab {
         let posted_str = listing.posted_at.as_ref().map(|p| p.format("%Y-%m-%d %H:%M").to_string());
         let found_str = listing.found_at.format("%Y-%m-%d %H:%M").to_string();
 
-        // Split inner into: title (2 lines), table (flexible), hint (1 line).
+        let has_description = listing.description.is_some();
+        let desc_height = if has_description { 5u16 } else { 0 };
+
+        // Split inner into: title (2 lines), table (flexible), description (optional), hint (1 line).
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2),
                 Constraint::Min(1),
+                Constraint::Length(desc_height),
                 Constraint::Length(1),
             ])
             .split(inner);
@@ -291,12 +289,25 @@ impl ResultsTab {
         let table = Table::new(rows, widths);
         frame.render_widget(table, chunks[1]);
 
+        if let Some(ref desc) = listing.description {
+            let desc_block = Block::default()
+                .title(Span::styled(" Description ", Style::default().fg(theme.fg_dim)))
+                .borders(Borders::TOP)
+                .border_style(Style::default().fg(theme.border));
+            let desc_inner = desc_block.inner(chunks[2]);
+            frame.render_widget(desc_block, chunks[2]);
+            let desc_para = Paragraph::new(desc.as_str())
+                .style(Style::default().fg(theme.fg))
+                .wrap(Wrap { trim: false });
+            frame.render_widget(desc_para, desc_inner);
+        }
+
         // Keyboard hint.
         let hint = Paragraph::new(Span::styled(
             "[Enter] details  [o] open in browser",
             Style::default().fg(theme.fg_dim),
         ));
-        frame.render_widget(hint, chunks[2]);
+        frame.render_widget(hint, chunks[3]);
     }
 }
 
@@ -304,5 +315,5 @@ pub enum ResultsAction {
     OpenUrl(String),
     ResultsChanged,
     SeenChanged,
-    ViewListing(crate::types::Listing, String),
+    ViewListing(Box<crate::types::Listing>, String),
 }

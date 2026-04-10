@@ -36,6 +36,7 @@ pub struct Listing {
     pub marketplace: MarketplaceKind,
     pub posted_at: Option<DateTime<Utc>>,
     pub found_at: DateTime<Utc>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

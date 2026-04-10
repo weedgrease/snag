@@ -120,7 +120,7 @@ impl AlertsTab {
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+            .constraints([Constraint::Max(30), Constraint::Min(40)])
             .split(area);
 
         self.render_list(frame, chunks[0], theme, config);

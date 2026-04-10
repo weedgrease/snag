@@ -24,6 +24,7 @@ fn save_and_load_results_round_trips() {
             marketplace: MarketplaceKind::FacebookMarketplace,
             posted_at: None,
             found_at: Utc::now(),
+            description: None,
         }],
         checked_at: Utc::now(),
         seen: false,

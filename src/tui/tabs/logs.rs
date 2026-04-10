@@ -28,8 +28,6 @@ impl LogsTab {
             KeyCode::PageDown => self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey),
             KeyCode::Up => self.state.transition(tui_logger::TuiWidgetEvent::UpKey),
             KeyCode::Down => self.state.transition(tui_logger::TuiWidgetEvent::DownKey),
-            KeyCode::Left => self.state.transition(tui_logger::TuiWidgetEvent::LeftKey),
-            KeyCode::Right => self.state.transition(tui_logger::TuiWidgetEvent::RightKey),
             KeyCode::Char('+') => self.state.transition(tui_logger::TuiWidgetEvent::PlusKey),
             KeyCode::Char('-') => self.state.transition(tui_logger::TuiWidgetEvent::MinusKey),
             KeyCode::Char('h') => self.state.transition(tui_logger::TuiWidgetEvent::HideKey),
@@ -46,6 +44,7 @@ impl LogsTab {
             .style_debug(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray))
             .style_trace(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray))
             .output_timestamp(Some("%H:%M:%S".to_string()))
+            .title_target("Target Selector")
             .state(&self.state);
         frame.render_widget(widget, area);
     }

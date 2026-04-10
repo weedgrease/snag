@@ -49,6 +49,7 @@ fn listing_round_trips_through_json() {
         marketplace: MarketplaceKind::FacebookMarketplace,
         posted_at: Some(Utc::now()),
         found_at: Utc::now(),
+        description: None,
     };
 
     let json = serde_json::to_string(&listing).unwrap();

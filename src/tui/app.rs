@@ -277,7 +277,7 @@ impl App {
                                         }
                                         crate::tui::tabs::results::ResultsAction::ViewListing(listing, alert_name) => {
                                             let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
-                                                listing,
+                                                *listing,
                                                 alert_name,
                                             );
                                             self.active_dialog = Some(ActiveDialog::ListingDetail(dialog));

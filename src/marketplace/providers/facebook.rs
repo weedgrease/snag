@@ -201,6 +201,12 @@ struct ListingNode {
     listing_price: Option<ListingPrice>,
     primary_listing_photo: Option<PrimaryPhoto>,
     location: Option<LocationNode>,
+    marketplace_listing_description: Option<DescriptionNode>,
+}
+
+#[derive(Deserialize)]
+struct DescriptionNode {
+    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -362,6 +368,10 @@ impl Marketplace for FacebookMarketplace {
                 .and_then(|r| r.city_page)
                 .and_then(|c| c.display_name);
 
+            let description = node
+                .marketplace_listing_description
+                .and_then(|d| d.text);
+
             let url = format!("https://www.facebook.com/marketplace/item/{}/", id);
 
             listings.push(Listing {
@@ -376,6 +386,7 @@ impl Marketplace for FacebookMarketplace {
                 marketplace: MarketplaceKind::FacebookMarketplace,
                 posted_at: None,
                 found_at: now,
+                description,
             });
         }
 

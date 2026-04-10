@@ -31,7 +31,7 @@ impl ListingDetailDialog {
 
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let dialog_width = 70u16.min(area.width.saturating_sub(4));
-        let dialog_height = 20u16.min(area.height.saturating_sub(4));
+        let dialog_height = 28u16.min(area.height.saturating_sub(4));
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
         let y = area.y + (area.height.saturating_sub(dialog_height)) / 2;
@@ -52,11 +52,15 @@ impl ListingDetailDialog {
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);
 
+        let has_description = self.listing.description.is_some();
+        let desc_height = if has_description { 5u16 } else { 0 };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2),
                 Constraint::Min(1),
+                Constraint::Length(desc_height),
                 Constraint::Length(2),
                 Constraint::Length(1),
             ])
@@ -122,18 +126,31 @@ impl ListingDetailDialog {
         let table = Table::new(rows, widths);
         frame.render_widget(table, chunks[1]);
 
+        if let Some(ref desc) = self.listing.description {
+            let desc_block = Block::default()
+                .title(Span::styled(" Description ", Style::default().fg(theme.fg_dim)))
+                .borders(Borders::TOP)
+                .border_style(Style::default().fg(theme.border));
+            let desc_inner = desc_block.inner(chunks[2]);
+            frame.render_widget(desc_block, chunks[2]);
+            let desc_para = Paragraph::new(desc.as_str())
+                .style(Style::default().fg(theme.fg))
+                .wrap(Wrap { trim: false });
+            frame.render_widget(desc_para, desc_inner);
+        }
+
         let url = Paragraph::new(Line::from(vec![
             Span::styled("URL  ", dim),
             Span::styled(&self.listing.url, Style::default().fg(theme.accent)),
         ]))
         .wrap(Wrap { trim: false });
-        frame.render_widget(url, chunks[2]);
+        frame.render_widget(url, chunks[3]);
 
         let hint = Paragraph::new(Span::styled(
             "[o] open in browser  [Esc] close",
             Style::default().fg(theme.fg_dim),
         ));
-        frame.render_widget(hint, chunks[3]);
+        frame.render_widget(hint, chunks[4]);
     }
 }
 

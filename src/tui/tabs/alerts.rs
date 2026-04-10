@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::tui::theme::Theme;
+use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -69,14 +70,14 @@ impl AlertsTab {
         None
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig) {
+    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus]) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
             .split(area);
 
         self.render_list(frame, chunks[0], theme, config);
-        self.render_detail(frame, chunks[1], theme, config);
+        self.render_detail(frame, chunks[1], theme, config, statuses);
     }
 
     fn render_list(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig) {
@@ -121,7 +122,7 @@ impl AlertsTab {
         frame.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_detail(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig) {
+    fn render_detail(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus]) {
         let block = Block::default()
             .title(Span::styled(
                 " Details ",
@@ -228,6 +229,36 @@ impl AlertsTab {
             Span::styled("Status    ", Style::default().fg(theme.fg_dim)),
             Span::styled(status, Style::default().fg(status_color)),
         ]));
+
+        if let Some(check_status) = statuses.iter().find(|s| s.alert_id == alert.id) {
+            lines.push(Line::from(""));
+
+            let ago = Utc::now().signed_duration_since(check_status.checked_at);
+            let ago_str = if ago.num_hours() > 0 {
+                format!("{}h ago", ago.num_hours())
+            } else if ago.num_minutes() > 0 {
+                format!("{}m ago", ago.num_minutes())
+            } else {
+                format!("{}s ago", ago.num_seconds())
+            };
+
+            if let Some(ref err) = check_status.error {
+                lines.push(Line::from(vec![
+                    Span::styled("Last check  ", Style::default().fg(theme.fg_dim)),
+                    Span::styled(ago_str, Style::default().fg(theme.fg)),
+                    Span::styled(format!(" — error: {}", err), Style::default().fg(theme.disabled)),
+                ]));
+            } else {
+                lines.push(Line::from(vec![
+                    Span::styled("Last check  ", Style::default().fg(theme.fg_dim)),
+                    Span::styled(ago_str, Style::default().fg(theme.fg)),
+                    Span::styled(
+                        format!(" — {} new results", check_status.new_results),
+                        Style::default().fg(theme.accent),
+                    ),
+                ]));
+            }
+        }
 
         let detail = Paragraph::new(lines).wrap(Wrap { trim: false });
         frame.render_widget(detail, inner);

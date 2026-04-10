@@ -92,9 +92,34 @@ async fn run_scheduler(config_path: &Path, results_path: &Path) -> Result<()> {
                         continue;
                     }
 
-                    if let Err(e) = check_alert(alert, results_path, config.settings.default_location.as_deref()).await {
-                        error!("failed to check alert '{}': {e}", alert.name);
+                    let status_path = results::status_path();
+                    let mut statuses = results::load_status(&status_path).unwrap_or_default();
+
+                    match check_alert(alert, results_path, config.settings.default_location.as_deref()).await {
+                        Ok(status) => {
+                            if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == alert.id) {
+                                *existing = status;
+                            } else {
+                                statuses.push(status);
+                            }
+                        }
+                        Err(e) => {
+                            error!("failed to check alert '{}': {e}", alert.name);
+                            let status = crate::types::CheckStatus {
+                                alert_id: alert.id,
+                                checked_at: Utc::now(),
+                                new_results: 0,
+                                error: Some(format!("{e}")),
+                            };
+                            if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == alert.id) {
+                                *existing = status;
+                            } else {
+                                statuses.push(status);
+                            }
+                        }
                     }
+
+                    let _ = results::save_status(&statuses, &status_path);
 
                     last_check_times.insert(alert.id, Instant::now());
                 }
@@ -105,7 +130,7 @@ async fn run_scheduler(config_path: &Path, results_path: &Path) -> Result<()> {
     Ok(())
 }
 
-async fn check_alert(alert: &crate::types::Alert, results_path: &Path, default_location: Option<&str>) -> Result<()> {
+async fn check_alert(alert: &crate::types::Alert, results_path: &Path, default_location: Option<&str>) -> Result<crate::types::CheckStatus> {
     let mut all_listings = vec![];
 
     for marketplace_kind in &alert.marketplaces {
@@ -144,6 +169,8 @@ async fn check_alert(alert: &crate::types::Alert, results_path: &Path, default_l
         new_listings
     };
 
+    let new_count = new_listings.len();
+
     if !new_listings.is_empty() {
         for notifier_kind in &alert.notifiers {
             let notifier = create_notifier(*notifier_kind);
@@ -163,7 +190,12 @@ async fn check_alert(alert: &crate::types::Alert, results_path: &Path, default_l
         save_results(&existing_results, results_path)?;
     }
 
-    Ok(())
+    Ok(crate::types::CheckStatus {
+        alert_id: alert.id,
+        checked_at: Utc::now(),
+        new_results: new_count,
+        error: None,
+    })
 }
 
 pub async fn check_once() -> Result<()> {
@@ -180,13 +212,40 @@ pub async fn check_once() -> Result<()> {
 pub async fn check_once_with_paths(config_path: &Path, results_path: &Path) -> Result<()> {
     let config = load_config(config_path).context("failed to load config")?;
 
+    let status_path = results::status_path();
+    let mut statuses = results::load_status(&status_path).unwrap_or_default();
+
     for alert in &config.alerts {
         if !alert.enabled {
             continue;
         }
 
-        check_alert(alert, results_path, config.settings.default_location.as_deref()).await?;
+        match check_alert(alert, results_path, config.settings.default_location.as_deref()).await {
+            Ok(status) => {
+                if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == alert.id) {
+                    *existing = status;
+                } else {
+                    statuses.push(status);
+                }
+            }
+            Err(e) => {
+                let status = crate::types::CheckStatus {
+                    alert_id: alert.id,
+                    checked_at: Utc::now(),
+                    new_results: 0,
+                    error: Some(format!("{e}")),
+                };
+                if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == alert.id) {
+                    *existing = status;
+                } else {
+                    statuses.push(status);
+                }
+                return Err(e);
+            }
+        }
     }
+
+    let _ = results::save_status(&statuses, &status_path);
 
     Ok(())
 }

@@ -47,6 +47,14 @@ pub struct AlertResult {
     pub seen: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CheckStatus {
+    pub alert_id: Uuid,
+    pub checked_at: DateTime<Utc>,
+    pub new_results: usize,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MarketplaceKind {
     FacebookMarketplace,

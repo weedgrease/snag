@@ -26,6 +26,8 @@ pub struct App {
     pub config_path: std::path::PathBuf,
     pub results: Vec<AlertResult>,
     pub results_path: std::path::PathBuf,
+    pub statuses: Vec<crate::types::CheckStatus>,
+    pub status_path: std::path::PathBuf,
     pub theme: Theme,
     pub alerts_tab: AlertsTab,
     pub results_tab: ResultsTab,
@@ -52,6 +54,8 @@ impl App {
         let results_path = results_path();
         let config = load_config(&config_path).unwrap_or_default();
         let results = load_results(&results_path).unwrap_or_default();
+        let status_path = crate::daemon::results::status_path();
+        let statuses = crate::daemon::results::load_status(&status_path).unwrap_or_default();
 
         let update_rx = if config.settings.check_for_updates {
             let (tx, rx) = tokio::sync::oneshot::channel();
@@ -70,6 +74,8 @@ impl App {
             config_path,
             results,
             results_path,
+            statuses,
+            status_path,
             theme: Theme::default(),
             alerts_tab: AlertsTab::new(),
             results_tab: ResultsTab::new(),
@@ -215,6 +221,9 @@ impl App {
                 if let Ok(new_results) = load_results(&self.results_path) {
                     self.results = new_results;
                 }
+                if let Ok(new_statuses) = crate::daemon::results::load_status(&self.status_path) {
+                    self.statuses = new_statuses;
+                }
                 last_results_refresh = Instant::now();
             }
 
@@ -316,7 +325,7 @@ impl App {
         self.render_tabs(frame, chunks[0]);
 
         match self.active_tab {
-            TabKind::Alerts => self.alerts_tab.render(frame, chunks[1], &self.theme, &self.config),
+            TabKind::Alerts => self.alerts_tab.render(frame, chunks[1], &self.theme, &self.config, &self.statuses),
             TabKind::Results => self.results_tab.render(frame, chunks[1], &self.theme, &self.results),
             TabKind::Settings => self.settings_tab.render(frame, chunks[1], &self.theme, &self.config),
         }

@@ -14,7 +14,7 @@ use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Tabs};
+use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
 use ratatui::Frame;
 use std::time::{Duration, Instant};
 
@@ -237,7 +237,11 @@ impl App {
     fn render(&self, frame: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(0)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(0),
+                Constraint::Length(1),
+            ])
             .split(frame.area());
 
         self.render_tabs(frame, chunks[0]);
@@ -247,6 +251,8 @@ impl App {
             TabKind::Results => self.results_tab.render(frame, chunks[1], &self.theme, &self.results),
             TabKind::Settings => self.settings_tab.render(frame, chunks[1], &self.theme, &self.config),
         }
+
+        self.render_status_bar(frame, chunks[2]);
 
         // Draw dialogs on top of normal content
         if let Some(dialog) = &self.active_dialog {
@@ -297,5 +303,30 @@ impl App {
             );
 
         frame.render_widget(tabs, area);
+    }
+
+    fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
+        let hints = match self.active_tab {
+            TabKind::Alerts => "[n]ew [e]dit [d]elete [space]toggle [q]uit",
+            TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
+            TabKind::Settings => "[r]estart [s]top daemon [q]uit",
+        };
+
+        let bar = Paragraph::new(Line::from(vec![
+            Span::styled(
+                " Tab/1-3 ",
+                Style::default()
+                    .fg(self.theme.status_bar_fg)
+                    .bg(self.theme.accent),
+            ),
+            Span::styled(
+                format!(" {} ", hints),
+                Style::default()
+                    .fg(self.theme.status_bar_fg)
+                    .bg(self.theme.status_bar_bg),
+            ),
+        ]));
+
+        frame.render_widget(bar, area);
     }
 }

@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Wrap};
 use ratatui::Frame;
 
 pub struct ResultsTab {
@@ -198,61 +198,90 @@ impl ResultsTab {
 
         let listing = &results[entry.result_idx].listings[entry.listing_idx];
 
-        let mut lines = vec![];
-        lines.push(Line::from(Span::styled(
-            &listing.title,
-            Style::default()
-                .fg(theme.fg)
-                .add_modifier(Modifier::BOLD),
-        )));
-        lines.push(Line::from(""));
-
         let price_str = listing.price.map(|p| format!("{}{:.2}", listing.currency, p));
         let marketplace_str = listing.marketplace.to_string();
         let cond_str = listing.condition.as_ref().map(|c| c.to_string());
         let posted_str = listing.posted_at.as_ref().map(|p| p.format("%Y-%m-%d %H:%M").to_string());
         let found_str = listing.found_at.format("%Y-%m-%d %H:%M").to_string();
 
+        // Split inner into: title (2 lines), table (flexible), hint (1 line).
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Min(1),
+                Constraint::Length(1),
+            ])
+            .split(inner);
+
+        // Listing title header.
+        let title_para = Paragraph::new(Span::styled(
+            &listing.title,
+            Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
+        ))
+        .wrap(Wrap { trim: false });
+        frame.render_widget(title_para, chunks[0]);
+
+        // Detail rows as a Table.
+        let dim = Style::default().fg(theme.fg_dim);
+        let fg = Style::default().fg(theme.fg);
+
+        let mut rows: Vec<Row> = vec![];
+
         if let Some(ref s) = price_str {
-            lines.push(detail_line("Price", s, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Price").style(dim),
+                Cell::from(s.as_str()).style(fg),
+            ]));
         }
 
-        lines.push(detail_line("Marketplace", &marketplace_str, theme));
+        rows.push(Row::new(vec![
+            Cell::from("Marketplace").style(dim),
+            Cell::from(marketplace_str.as_str()).style(fg),
+        ]));
 
         if let Some(ref loc) = listing.location {
-            lines.push(detail_line("Location", loc, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Location").style(dim),
+                Cell::from(loc.as_str()).style(fg),
+            ]));
         }
 
         if let Some(ref s) = cond_str {
-            lines.push(detail_line("Condition", s, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Condition").style(dim),
+                Cell::from(s.as_str()).style(fg),
+            ]));
         }
 
         if let Some(ref s) = posted_str {
-            lines.push(detail_line("Posted", s, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Posted").style(dim),
+                Cell::from(s.as_str()).style(fg),
+            ]));
         }
 
-        lines.push(detail_line("Found", &found_str, theme));
-        lines.push(Line::from(""));
-        lines.push(detail_line("Alert", &entry.alert_name, theme));
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
+        rows.push(Row::new(vec![
+            Cell::from("Found").style(dim),
+            Cell::from(found_str.as_str()).style(fg),
+        ]));
+
+        rows.push(Row::new(vec![
+            Cell::from("Alert").style(dim),
+            Cell::from(entry.alert_name.as_str()).style(fg),
+        ]));
+
+        let widths = [Constraint::Length(16), Constraint::Min(10)];
+        let table = Table::new(rows, widths);
+        frame.render_widget(table, chunks[1]);
+
+        // Keyboard hint.
+        let hint = Paragraph::new(Span::styled(
             "[o] open in browser",
             Style::default().fg(theme.accent),
-        )));
-
-        let detail = Paragraph::new(lines).wrap(Wrap { trim: false });
-        frame.render_widget(detail, inner);
+        ));
+        frame.render_widget(hint, chunks[2]);
     }
-}
-
-fn detail_line<'a>(label: &'a str, value: &'a str, theme: &Theme) -> Line<'a> {
-    Line::from(vec![
-        Span::styled(
-            format!("{:<12}", label),
-            Style::default().fg(theme.fg_dim),
-        ),
-        Span::styled(value, Style::default().fg(theme.fg)),
-    ])
 }
 
 pub enum ResultsAction {

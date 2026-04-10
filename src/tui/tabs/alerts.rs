@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table};
 use ratatui::Frame;
 
 pub struct AlertsTab {
@@ -146,7 +146,7 @@ impl AlertsTab {
             }
         };
 
-        // Pre-bind all temporary strings so they live long enough for `lines`.
+        // Pre-bind all temporary strings so they live long enough.
         let marketplaces_str: Vec<String> = alert.marketplaces.iter().map(|m| m.to_string()).collect();
         let marketplaces_joined = marketplaces_str.join(", ");
         let keywords_joined = alert.keywords.join(", ");
@@ -180,62 +180,105 @@ impl AlertsTab {
         let notifiers_joined = notifiers_strs.join(", ");
         let max_str = alert.max_results.map(|m| m.to_string());
 
-        let mut lines = vec![
-            Line::from(Span::styled(
-                &alert.name,
-                Style::default()
-                    .fg(theme.fg)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            detail_line("Marketplaces", &marketplaces_joined, theme),
-            detail_line("Keywords", &keywords_joined, theme),
+        let status = if alert.enabled { "Enabled" } else { "Disabled" };
+        let status_color = if alert.enabled { theme.enabled } else { theme.disabled };
+
+        // Split inner into: name (2 lines), table (flexible), status section (3 lines).
+        let check_status = statuses.iter().find(|s| s.alert_id == alert.id);
+        let status_height = if check_status.is_some() { 3 } else { 1 };
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Min(1),
+                Constraint::Length(status_height),
+            ])
+            .split(inner);
+
+        // Name header.
+        let name_para = Paragraph::new(Span::styled(
+            &alert.name,
+            Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
+        ));
+        frame.render_widget(name_para, chunks[0]);
+
+        // Detail rows as a Table.
+        let dim = Style::default().fg(theme.fg_dim);
+        let fg = Style::default().fg(theme.fg);
+
+        let mut rows: Vec<Row> = vec![
+            Row::new(vec![
+                Cell::from("Marketplaces").style(dim),
+                Cell::from(marketplaces_joined.as_str()).style(fg),
+            ]),
+            Row::new(vec![
+                Cell::from("Keywords").style(dim),
+                Cell::from(keywords_joined.as_str()).style(fg),
+            ]),
         ];
 
         if !alert.exclude_keywords.is_empty() {
-            lines.push(detail_line("Exclude", &exclude_joined, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Exclude").style(dim),
+                Cell::from(exclude_joined.as_str()).style(fg),
+            ]));
         }
 
         if let Some(ref price) = price_str {
-            lines.push(detail_line("Price", price, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Price").style(dim),
+                Cell::from(price.as_str()).style(fg),
+            ]));
         }
 
         if let Some(ref ls) = loc_str {
-            lines.push(detail_line("Location", ls, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Location").style(dim),
+                Cell::from(ls.as_str()).style(fg),
+            ]));
         }
 
         if let Some(ref cs) = cond_str {
-            lines.push(detail_line("Condition", cs, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Condition").style(dim),
+                Cell::from(cs.as_str()).style(fg),
+            ]));
         }
 
         if let Some(ref cat) = alert.category {
-            lines.push(detail_line("Category", cat, theme));
+            rows.push(Row::new(vec![
+                Cell::from("Category").style(dim),
+                Cell::from(cat.as_str()).style(fg),
+            ]));
         }
 
-        lines.push(detail_line("Interval", &interval_str, theme));
-        lines.push(detail_line("Notify", &notifiers_joined, theme));
-
-        if let Some(ref ms) = max_str {
-            lines.push(detail_line("Max results", ms, theme));
-        }
-
-        let status = if alert.enabled { "Enabled" } else { "Disabled" };
-        let status_color = if alert.enabled {
-            theme.enabled
-        } else {
-            theme.disabled
-        };
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("{:<16}", "Status"),
-                Style::default().fg(theme.fg_dim),
-            ),
-            Span::styled(status, Style::default().fg(status_color)),
+        rows.push(Row::new(vec![
+            Cell::from("Interval").style(dim),
+            Cell::from(interval_str.as_str()).style(fg),
+        ]));
+        rows.push(Row::new(vec![
+            Cell::from("Notify").style(dim),
+            Cell::from(notifiers_joined.as_str()).style(fg),
         ]));
 
-        if let Some(check_status) = statuses.iter().find(|s| s.alert_id == alert.id) {
-            lines.push(Line::from(""));
+        if let Some(ref ms) = max_str {
+            rows.push(Row::new(vec![
+                Cell::from("Max results").style(dim),
+                Cell::from(ms.as_str()).style(fg),
+            ]));
+        }
 
+        rows.push(Row::new(vec![
+            Cell::from("Status").style(dim),
+            Cell::from(status).style(Style::default().fg(status_color)),
+        ]));
+
+        let widths = [Constraint::Length(16), Constraint::Min(10)];
+        let table = Table::new(rows, widths);
+        frame.render_widget(table, chunks[1]);
+
+        // Check status section.
+        if let Some(check_status) = check_status {
             let ago = Utc::now().signed_duration_since(check_status.checked_at);
             let ago_str = if ago.num_hours() > 0 {
                 format!("{}h ago", ago.num_hours())
@@ -245,43 +288,31 @@ impl AlertsTab {
                 format!("{}s ago", ago.num_seconds())
             };
 
-            if let Some(ref err) = check_status.error {
-                lines.push(Line::from(vec![
-                    Span::styled(
-                        format!("{:<16}", "Last check"),
-                        Style::default().fg(theme.fg_dim),
-                    ),
+            let last_check_line = if let Some(ref err) = check_status.error {
+                Line::from(vec![
                     Span::styled(ago_str, Style::default().fg(theme.fg)),
                     Span::styled(format!(" — error: {}", err), Style::default().fg(theme.disabled)),
-                ]));
+                ])
             } else {
-                lines.push(Line::from(vec![
-                    Span::styled(
-                        format!("{:<16}", "Last check"),
-                        Style::default().fg(theme.fg_dim),
-                    ),
+                Line::from(vec![
                     Span::styled(ago_str, Style::default().fg(theme.fg)),
                     Span::styled(
                         format!(" — {} new results", check_status.new_results),
                         Style::default().fg(theme.accent),
                     ),
-                ]));
-            }
+                ])
+            };
+
+            let status_rows = vec![
+                Row::new(vec![
+                    Cell::from("Last check").style(dim),
+                    Cell::from(last_check_line),
+                ]),
+            ];
+            let status_table = Table::new(status_rows, widths);
+            frame.render_widget(status_table, chunks[2]);
         }
-
-        let detail = Paragraph::new(lines).wrap(Wrap { trim: false });
-        frame.render_widget(detail, inner);
     }
-}
-
-fn detail_line<'a>(label: &'a str, value: &'a str, theme: &Theme) -> Line<'a> {
-    Line::from(vec![
-        Span::styled(
-            format!("{:<16}", label),
-            Style::default().fg(theme.fg_dim),
-        ),
-        Span::styled(value, Style::default().fg(theme.fg)),
-    ])
 }
 
 pub enum AlertsAction {

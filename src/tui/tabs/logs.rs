@@ -16,7 +16,7 @@ impl LogsTab {
     pub fn new() -> Self {
         Self {
             state: tui_logger::TuiWidgetState::new()
-                .set_default_display_level(log::LevelFilter::Info),
+                .set_default_display_level(log::LevelFilter::Debug),
         }
     }
 
@@ -28,8 +28,8 @@ impl LogsTab {
             KeyCode::PageDown => self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey),
             KeyCode::Up => self.state.transition(tui_logger::TuiWidgetEvent::UpKey),
             KeyCode::Down => self.state.transition(tui_logger::TuiWidgetEvent::DownKey),
-            KeyCode::Char('+') => self.state.transition(tui_logger::TuiWidgetEvent::PlusKey),
-            KeyCode::Char('-') => self.state.transition(tui_logger::TuiWidgetEvent::MinusKey),
+            KeyCode::Left => self.state.transition(tui_logger::TuiWidgetEvent::LeftKey),
+            KeyCode::Right => self.state.transition(tui_logger::TuiWidgetEvent::RightKey),
             KeyCode::Char('h') => self.state.transition(tui_logger::TuiWidgetEvent::HideKey),
             KeyCode::Char('f') => self.state.transition(tui_logger::TuiWidgetEvent::FocusKey),
             _ => {}

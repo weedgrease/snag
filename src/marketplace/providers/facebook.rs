@@ -66,19 +66,28 @@ impl FacebookMarketplace {
             ])
             .send()
             .await
-            .context("failed to fetch location")?
-            .error_for_status()
-            .context("location request failed")?;
+            .context("failed to fetch location")?;
 
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .context("failed to parse location response")?;
+        let status = response.status();
+        let _ = log_tx.try_send(LogEntry::debug(format!("Location API status: {}", status)));
+
+        let body_text = response.text().await.context("failed to read location response body")?;
+        let _ = log_tx.try_send(LogEntry::debug(format!(
+            "Location API response ({} bytes): {}",
+            body_text.len(),
+            if body_text.len() > 500 { &body_text[..500] } else { &body_text }
+        )));
+
+        let body: serde_json::Value = serde_json::from_str(&body_text)
+            .context("failed to parse location response as JSON")?;
 
         let locations = body
             .pointer("/data/city_street_search/street_results/edges")
             .and_then(|v| v.as_array())
-            .context("unexpected location response structure")?;
+            .context(format!(
+                "unexpected location response structure. Keys: {:?}",
+                body.as_object().map(|o| o.keys().collect::<Vec<_>>())
+            ))?;
 
         let node = locations
             .first()
@@ -291,14 +300,20 @@ impl Marketplace for FacebookMarketplace {
             ])
             .send()
             .await
-            .context("failed to search Facebook Marketplace")?
-            .error_for_status()
-            .context("Facebook Marketplace search request failed")?;
+            .context("failed to search Facebook Marketplace")?;
 
-        let body: SearchResponse = response
-            .json()
-            .await
-            .context("failed to parse search response")?;
+        let status = response.status();
+        let _ = log_tx.try_send(LogEntry::debug(format!("Search API status: {}", status)));
+
+        let body_text = response.text().await.context("failed to read search response body")?;
+        let _ = log_tx.try_send(LogEntry::debug(format!(
+            "Search API response ({} bytes): {}",
+            body_text.len(),
+            if body_text.len() > 500 { &body_text[..500] } else { &body_text }
+        )));
+
+        let body: SearchResponse = serde_json::from_str(&body_text)
+            .context("failed to parse search response as JSON")?;
 
         let edges = body
             .data
@@ -306,6 +321,8 @@ impl Marketplace for FacebookMarketplace {
             .and_then(|ms| ms.feed_units)
             .map(|fu| fu.edges)
             .unwrap_or_default();
+
+        let _ = log_tx.try_send(LogEntry::debug(format!("Search returned {} edges", edges.len())));
 
         let now = Utc::now();
         let exclude_lower: Vec<String> = alert

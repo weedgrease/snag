@@ -221,7 +221,7 @@ impl SettingsTab {
             )),
             Line::from(""),
             Line::from(vec![
-                Span::styled("  Status    ", Style::default().fg(theme.fg_dim)),
+                Span::styled(format!("  {:<12}", "Status"), Style::default().fg(theme.fg_dim)),
                 Span::styled(&status, Style::default().fg(status_color)),
                 Span::styled(
                     pid.map(|p| format!(" (PID {})", p)).unwrap_or_default(),

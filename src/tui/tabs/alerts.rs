@@ -226,7 +226,10 @@ impl AlertsTab {
             theme.disabled
         };
         lines.push(Line::from(vec![
-            Span::styled("Status    ", Style::default().fg(theme.fg_dim)),
+            Span::styled(
+                format!("{:<16}", "Status"),
+                Style::default().fg(theme.fg_dim),
+            ),
             Span::styled(status, Style::default().fg(status_color)),
         ]));
 
@@ -244,13 +247,19 @@ impl AlertsTab {
 
             if let Some(ref err) = check_status.error {
                 lines.push(Line::from(vec![
-                    Span::styled("Last check  ", Style::default().fg(theme.fg_dim)),
+                    Span::styled(
+                        format!("{:<16}", "Last check"),
+                        Style::default().fg(theme.fg_dim),
+                    ),
                     Span::styled(ago_str, Style::default().fg(theme.fg)),
                     Span::styled(format!(" — error: {}", err), Style::default().fg(theme.disabled)),
                 ]));
             } else {
                 lines.push(Line::from(vec![
-                    Span::styled("Last check  ", Style::default().fg(theme.fg_dim)),
+                    Span::styled(
+                        format!("{:<16}", "Last check"),
+                        Style::default().fg(theme.fg_dim),
+                    ),
                     Span::styled(ago_str, Style::default().fg(theme.fg)),
                     Span::styled(
                         format!(" — {} new results", check_status.new_results),

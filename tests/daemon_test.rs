@@ -1,6 +1,7 @@
 use snag::config::{AppConfig, GlobalSettings, save_config};
 use snag::daemon::results::load_results;
 use snag::types::*;
+use snag::types::LogLevel;
 use std::time::Duration;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -18,6 +19,7 @@ async fn check_once_runs_without_error_for_enabled_alerts() {
             default_notifier: NotifierKind::Terminal,
             check_for_updates: true,
             default_location: None,
+            log_level: LogLevel::Info,
         },
         alerts: vec![Alert {
             id: Uuid::new_v4(),
@@ -62,6 +64,7 @@ async fn check_once_skips_disabled_alerts() {
             default_notifier: NotifierKind::Terminal,
             check_for_updates: true,
             default_location: None,
+            log_level: LogLevel::Info,
         },
         alerts: vec![Alert {
             id: Uuid::new_v4(),

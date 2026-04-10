@@ -26,6 +26,8 @@ pub struct GlobalSettings {
     pub check_for_updates: bool,
     #[serde(default)]
     pub default_location: Option<String>,
+    #[serde(default)]
+    pub log_level: LogLevel,
 }
 
 impl Default for AppConfig {
@@ -37,6 +39,7 @@ impl Default for AppConfig {
                 default_notifier: NotifierKind::Terminal,
                 check_for_updates: true,
                 default_location: None,
+                log_level: LogLevel::Info,
             },
             alerts: vec![],
         }

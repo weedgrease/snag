@@ -1,5 +1,6 @@
 use snag::config::{AppConfig, GlobalSettings, load_config, save_config};
 use snag::types::*;
+use snag::types::LogLevel;
 use std::time::Duration;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -16,6 +17,7 @@ fn save_and_load_config_round_trips() {
             default_notifier: NotifierKind::Terminal,
             check_for_updates: true,
             default_location: None,
+            log_level: LogLevel::Info,
         },
         alerts: vec![
             Alert {
@@ -95,6 +97,7 @@ fn config_with_default_location_round_trips() {
             default_notifier: NotifierKind::Terminal,
             check_for_updates: true,
             default_location: Some("Denver, CO".into()),
+            log_level: LogLevel::Info,
         },
         alerts: vec![],
     };

@@ -201,12 +201,6 @@ struct ListingNode {
     listing_price: Option<ListingPrice>,
     primary_listing_photo: Option<PrimaryPhoto>,
     location: Option<LocationNode>,
-    marketplace_listing_description: Option<DescriptionNode>,
-}
-
-#[derive(Deserialize)]
-struct DescriptionNode {
-    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -297,20 +291,6 @@ impl Marketplace for FacebookMarketplace {
             if body_text.len() > 500 { &body_text[..500] } else { &body_text }
         );
 
-        // TEMP: log first raw listing node to debug field names
-        if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&body_text)
-            && let Some(first_edge) = raw.pointer("/data/marketplace_search/feed_units/edges/0/node/listing")
-        {
-            let keys: Vec<&str> = first_edge
-                .as_object()
-                .map(|o| o.keys().map(|k| k.as_str()).collect())
-                .unwrap_or_default();
-            log::debug!(target: "snag::facebook", "First listing node keys: {:?}", keys);
-            log::debug!(target: "snag::facebook", "First listing raw JSON: {}",
-                serde_json::to_string(first_edge).unwrap_or_default()
-            );
-        }
-
         let body: SearchResponse = serde_json::from_str(&body_text)
             .context("failed to parse search response as JSON")?;
 
@@ -382,16 +362,6 @@ impl Marketplace for FacebookMarketplace {
                 .and_then(|r| r.city_page)
                 .and_then(|c| c.display_name);
 
-            let description = node
-                .marketplace_listing_description
-                .and_then(|d| d.text);
-
-            log::debug!(target: "snag::facebook", "Listing '{}': price={:?}, description={:?}",
-                title,
-                price,
-                description.as_ref().map(|d| if d.len() > 50 { &d[..50] } else { d.as_str() })
-            );
-
             let url = format!("https://www.facebook.com/marketplace/item/{}/", id);
 
             listings.push(Listing {
@@ -406,7 +376,7 @@ impl Marketplace for FacebookMarketplace {
                 marketplace: MarketplaceKind::FacebookMarketplace,
                 posted_at: None,
                 found_at: now,
-                description,
+                description: None,
             });
         }
 

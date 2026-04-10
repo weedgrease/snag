@@ -16,7 +16,7 @@ impl LogsTab {
     pub fn new() -> Self {
         Self {
             state: tui_logger::TuiWidgetState::new()
-                .set_default_display_level(log::LevelFilter::Debug),
+                .set_default_display_level(log::LevelFilter::Info),
         }
     }
 

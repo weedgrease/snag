@@ -297,6 +297,22 @@ impl Marketplace for FacebookMarketplace {
             if body_text.len() > 500 { &body_text[..500] } else { &body_text }
         );
 
+        // TEMP: log first raw listing node to debug field names
+        if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&body_text) {
+            if let Some(first_edge) = raw
+                .pointer("/data/marketplace_search/feed_units/edges/0/node/listing")
+            {
+                let keys: Vec<&str> = first_edge
+                    .as_object()
+                    .map(|o| o.keys().map(|k| k.as_str()).collect())
+                    .unwrap_or_default();
+                log::debug!(target: "snag::facebook", "First listing node keys: {:?}", keys);
+                log::debug!(target: "snag::facebook", "First listing raw JSON: {}",
+                    serde_json::to_string(first_edge).unwrap_or_default()
+                );
+            }
+        }
+
         let body: SearchResponse = serde_json::from_str(&body_text)
             .context("failed to parse search response as JSON")?;
 

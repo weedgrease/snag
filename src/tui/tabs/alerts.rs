@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table};
+use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table};
 use ratatui::Frame;
 
 pub struct AlertsTab {
@@ -176,6 +176,14 @@ impl AlertsTab {
 
         let mut state = self.list_state;
         frame.render_stateful_widget(list, area, &mut state);
+
+        if config.alerts.len() > area.height.saturating_sub(2) as usize {
+            let mut scrollbar_state = ScrollbarState::new(config.alerts.len())
+                .position(self.selected);
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
+            let scrollbar_area = area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 0 });
+            frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -440,6 +448,13 @@ impl AlertsTab {
                     .highlight_style(Style::default().bg(theme.selected_bg));
                 let mut listing_state = self.listing_state;
                 frame.render_stateful_widget(list, list_area, &mut listing_state);
+
+                if alert_listings.len() > list_area.height as usize {
+                    let mut scrollbar_state = ScrollbarState::new(alert_listings.len())
+                        .position(self.listing_selected);
+                    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
+                    frame.render_stateful_widget(scrollbar, list_area, &mut scrollbar_state);
+                }
             }
         }
     }

@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Table, Wrap};
+use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table, Wrap};
 use ratatui::Frame;
 
 pub struct ResultsTab {
@@ -184,6 +184,14 @@ impl ResultsTab {
 
         let mut state = self.list_state;
         frame.render_stateful_widget(list, area, &mut state);
+
+        if flat.len() > area.height.saturating_sub(2) as usize {
+            let mut scrollbar_state = ScrollbarState::new(flat.len())
+                .position(self.selected);
+            let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
+            let scrollbar_area = area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 0 });
+            frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
+        }
     }
 
     fn render_detail(

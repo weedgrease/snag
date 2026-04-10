@@ -7,7 +7,6 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
-use std::path::PathBuf;
 use std::time::Duration;
 
 const FIELD_CHECK_INTERVAL: usize = 0;
@@ -120,13 +119,6 @@ impl SettingsTab {
                     return Some(SettingsAction::ConfigChanged);
                 }
             }
-            KeyCode::Char('r') => return Some(SettingsAction::RestartDaemon),
-            KeyCode::Char('s') => {
-                if self.selected == FIELD_CHECK_INTERVAL || self.selected == FIELD_MAX_RESULTS {
-                    return None;
-                }
-                return Some(SettingsAction::StopDaemon);
-            }
             _ => {}
         }
         None
@@ -197,55 +189,16 @@ impl SettingsTab {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(8),
                 Constraint::Length(4 + FIELD_COUNT as u16 + 2),
                 Constraint::Length(banner_height),
                 Constraint::Min(0),
             ])
             .split(inner);
 
-        self.render_daemon_section(frame, chunks[0], theme);
-        self.render_defaults_section(frame, chunks[1], theme, config);
+        self.render_defaults_section(frame, chunks[0], theme, config);
         if let Some(ref banner) = self.update_banner {
-            self.render_update_banner(frame, chunks[2], theme, banner);
+            self.render_update_banner(frame, chunks[1], theme, banner);
         }
-    }
-
-    fn render_daemon_section(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        let pid_path = crate::config::data_dir().join("daemon.pid");
-        let (status, pid) = read_daemon_status(&pid_path);
-
-        let status_color = if status == "Running" {
-            theme.enabled
-        } else {
-            theme.disabled
-        };
-
-        let lines = vec![
-            Line::from(Span::styled(
-                "Daemon",
-                Style::default()
-                    .fg(theme.fg)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from(vec![
-                Span::styled(format!("  {:<12}", "Status"), Style::default().fg(theme.fg_dim)),
-                Span::styled(&status, Style::default().fg(status_color)),
-                Span::styled(
-                    pid.map(|p| format!(" (PID {})", p)).unwrap_or_default(),
-                    Style::default().fg(theme.fg_dim),
-                ),
-            ]),
-            Line::from(""),
-            Line::from(Span::styled(
-                "  [r] restart  [s] stop",
-                Style::default().fg(theme.accent),
-            )),
-        ];
-
-        let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
-        frame.render_widget(paragraph, area);
     }
 
     fn render_defaults_section(
@@ -358,28 +311,6 @@ impl SettingsTab {
     }
 }
 
-fn read_daemon_status(pid_path: &PathBuf) -> (String, Option<u32>) {
-    let pid_str = match std::fs::read_to_string(pid_path) {
-        Ok(s) => s,
-        Err(_) => return ("Stopped".into(), None),
-    };
-
-    let pid: u32 = match pid_str.trim().parse() {
-        Ok(p) => p,
-        Err(_) => return ("Stopped".into(), None),
-    };
-
-    let alive = std::path::Path::new(&format!("/proc/{}", pid)).exists();
-    if alive {
-        ("Running".into(), Some(pid))
-    } else {
-        ("Stopped (stale PID)".into(), Some(pid))
-    }
-}
-
 pub enum SettingsAction {
-    StartDaemon,
-    StopDaemon,
-    RestartDaemon,
     ConfigChanged,
 }

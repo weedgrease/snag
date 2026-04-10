@@ -64,6 +64,11 @@ impl AlertsTab {
                     return Some(AlertsAction::DeleteAlert(self.selected));
                 }
             }
+            KeyCode::Char('f') => {
+                if self.selected < alert_count {
+                    return Some(AlertsAction::ForceCheck(self.selected));
+                }
+            }
             _ => {}
         }
 
@@ -320,4 +325,5 @@ pub enum AlertsAction {
     CreateAlert,
     EditAlert(usize),
     DeleteAlert(usize),
+    ForceCheck(usize),
 }

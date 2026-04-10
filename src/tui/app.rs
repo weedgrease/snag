@@ -37,6 +37,8 @@ pub struct App {
     update_rx: Option<tokio::sync::oneshot::Receiver<Option<crate::update::UpdateInfo>>>,
     scheduler_rx: Option<tokio::sync::mpsc::Receiver<crate::scheduler::SchedulerEvent>>,
     log_rx: Option<tokio::sync::mpsc::Receiver<crate::types::LogEntry>>,
+    log_tx: Option<tokio::sync::mpsc::Sender<crate::types::LogEntry>>,
+    force_event_tx: Option<tokio::sync::mpsc::Sender<crate::scheduler::SchedulerEvent>>,
     config_tx: Option<tokio::sync::watch::Sender<AppConfig>>,
     _scheduler_lock: Option<std::fs::File>,
     last_results_mtime: Option<std::time::SystemTime>,
@@ -67,19 +69,20 @@ impl App {
             .flat_map(|r| r.listings.iter().map(|l| l.id.clone()))
             .collect();
 
-        let (scheduler_rx, config_tx, scheduler_lock, log_rx) =
+        let (scheduler_rx, config_tx, scheduler_lock, log_rx, log_tx, force_event_tx) =
             if let Some(lock) = crate::scheduler::try_acquire_scheduler_lock() {
                 let (event_tx, event_rx) =
                     tokio::sync::mpsc::channel::<crate::scheduler::SchedulerEvent>(64);
                 let (cfg_tx, cfg_rx) = tokio::sync::watch::channel(config.clone());
-                let (log_tx, log_rx) =
+                let (l_tx, log_rx) =
                     tokio::sync::mpsc::channel::<crate::types::LogEntry>(200);
+                let force_tx = event_tx.clone();
                 let scheduler =
-                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids, log_tx);
+                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids, l_tx.clone());
                 tokio::spawn(scheduler.run());
-                (Some(event_rx), Some(cfg_tx), Some(lock), Some(log_rx))
+                (Some(event_rx), Some(cfg_tx), Some(lock), Some(log_rx), Some(l_tx), Some(force_tx))
             } else {
-                (None, None, None, None)
+                (None, None, None, None, None, None)
             };
 
         let mut logs_tab = crate::tui::tabs::logs::LogsTab::new();
@@ -115,6 +118,8 @@ impl App {
             update_rx,
             scheduler_rx,
             log_rx,
+            log_tx,
+            force_event_tx,
             config_tx,
             _scheduler_lock: scheduler_lock,
             last_results_mtime: None,
@@ -190,6 +195,52 @@ impl App {
                                                     format!("Delete alert \"{}\"?", name),
                                                 );
                                                 self.active_dialog = Some(ActiveDialog::Confirm(dialog, ConfirmAction::DeleteAlert(idx)));
+                                            }
+                                        }
+                                        crate::tui::tabs::alerts::AlertsAction::ForceCheck(idx) => {
+                                            if let Some(alert) = self.config.alerts.get(idx).cloned() {
+                                                let existing_ids: std::collections::HashSet<String> = self.results
+                                                    .iter()
+                                                    .flat_map(|r| r.listings.iter().map(|l| l.id.clone()))
+                                                    .collect();
+                                                let default_loc = self.config.settings.default_location.clone();
+                                                let event_tx = self.force_event_tx.clone();
+                                                let log_tx = self.log_tx.clone();
+                                                tokio::spawn(async move {
+                                                    let Some(event_tx) = event_tx else { return };
+                                                    let (l_tx, _) = tokio::sync::mpsc::channel(200);
+                                                    let active_log = log_tx.unwrap_or(l_tx);
+                                                    let _ = active_log.try_send(crate::types::LogEntry::info(
+                                                        format!("Force checking alert: '{}'", alert.name),
+                                                    ));
+                                                    match crate::scheduler::check_alert(
+                                                        &alert,
+                                                        &existing_ids,
+                                                        default_loc.as_deref(),
+                                                        &active_log,
+                                                    ).await {
+                                                        Ok((status, new_listings)) => {
+                                                            let result = if new_listings.is_empty() {
+                                                                None
+                                                            } else {
+                                                                Some(crate::types::AlertResult {
+                                                                    alert_id: alert.id,
+                                                                    alert_name: alert.name.clone(),
+                                                                    listings: new_listings,
+                                                                    checked_at: chrono::Utc::now(),
+                                                                    seen: false,
+                                                                })
+                                                            };
+                                                            let _ = event_tx.send(crate::scheduler::SchedulerEvent::CheckComplete { status, result }).await;
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = event_tx.send(crate::scheduler::SchedulerEvent::CheckError {
+                                                                alert_id: alert.id,
+                                                                error: format!("{e}"),
+                                                            }).await;
+                                                        }
+                                                    }
+                                                });
                                             }
                                         }
                                     }
@@ -456,9 +507,9 @@ impl App {
 
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
         let hints = match self.active_tab {
-            TabKind::Alerts => "[n]ew [e]dit [d]elete [space]toggle [q]uit",
+            TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce check [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
-            TabKind::Settings => "[r]estart [s]top daemon [q]uit",
+            TabKind::Settings => "[Enter] edit/toggle [↑↓] navigate [q]uit",
             TabKind::Logs => "[↑↓] scroll [G] bottom [c] clear [q]uit",
         };
 

@@ -94,12 +94,16 @@ impl FacebookMarketplace {
             .and_then(|edge| edge.get("node"))
             .context("no locations found")?;
 
-        let lat = node
+        let location = node
+            .get("location")
+            .context("missing location object on node")?;
+
+        let lat = location
             .get("latitude")
             .and_then(|v| v.as_f64())
             .context("missing latitude")?;
 
-        let lng = node
+        let lng = location
             .get("longitude")
             .and_then(|v| v.as_f64())
             .context("missing longitude")?;

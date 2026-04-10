@@ -32,6 +32,8 @@ pub struct App {
     pub settings_tab: SettingsTab,
     pub should_quit: bool,
     pub active_dialog: Option<ActiveDialog>,
+    pub update_info: Option<crate::update::UpdateInfo>,
+    update_rx: Option<tokio::sync::oneshot::Receiver<Option<crate::update::UpdateInfo>>>,
 }
 
 pub enum ActiveDialog {
@@ -51,6 +53,17 @@ impl App {
         let config = load_config(&config_path).unwrap_or_default();
         let results = load_results(&results_path).unwrap_or_default();
 
+        let update_rx = if config.settings.check_for_updates {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            tokio::spawn(async move {
+                let result = crate::update::check_for_update().await.ok().flatten();
+                let _ = tx.send(result);
+            });
+            Some(rx)
+        } else {
+            None
+        };
+
         Ok(Self {
             active_tab: TabKind::Alerts,
             config,
@@ -63,6 +76,8 @@ impl App {
             settings_tab: SettingsTab::new(),
             should_quit: false,
             active_dialog: None,
+            update_info: None,
+            update_rx,
         })
     }
 
@@ -200,6 +215,17 @@ impl App {
                     self.results = new_results;
                 }
                 last_results_refresh = Instant::now();
+            }
+
+            if let Some(ref mut rx) = self.update_rx {
+                if let Ok(result) = rx.try_recv() {
+                    if let Some(info) = result {
+                        self.settings_tab.update_banner =
+                            Some(format!("Update available: {} — run `snag update`", info.latest_version));
+                        self.update_info = Some(info);
+                    }
+                    self.update_rx = None;
+                }
             }
 
             if self.should_quit {

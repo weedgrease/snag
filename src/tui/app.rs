@@ -1,5 +1,8 @@
 use crate::config::{self, AppConfig, load_config, save_config};
 use crate::daemon::results::{load_results, results_path};
+use crate::tui::dialogs::alert_form::AlertFormDialog;
+use crate::tui::dialogs::confirm::ConfirmDialog;
+use crate::tui::dialogs::DialogResult;
 use crate::tui::tabs::alerts::AlertsTab;
 use crate::tui::tabs::results::ResultsTab;
 use crate::tui::tabs::settings::SettingsTab;
@@ -26,6 +29,17 @@ pub struct App {
     pub results_tab: ResultsTab,
     pub settings_tab: SettingsTab,
     pub should_quit: bool,
+    pub active_dialog: Option<ActiveDialog>,
+}
+
+pub enum ActiveDialog {
+    AlertForm(AlertFormDialog),
+    Confirm(ConfirmDialog, ConfirmAction),
+}
+
+pub enum ConfirmAction {
+    DeleteAlert(usize),
+    ClearResults,
 }
 
 impl App {
@@ -46,6 +60,7 @@ impl App {
             results_tab: ResultsTab::new(),
             settings_tab: SettingsTab::new(),
             should_quit: false,
+            active_dialog: None,
         })
     }
 
@@ -63,7 +78,16 @@ impl App {
                 if let Event::Key(key) = event::read()? {
                     if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
                         self.should_quit = true;
-                    } else if key.code == KeyCode::Char('q') {
+                        continue;
+                    }
+
+                    // Dialog handling takes priority over all other input
+                    if self.active_dialog.is_some() {
+                        self.handle_dialog_key(key);
+                        continue;
+                    }
+
+                    if key.code == KeyCode::Char('q') {
                         self.should_quit = true;
                     } else if key.code == KeyCode::Tab {
                         self.active_tab = self.active_tab.next();
@@ -83,18 +107,23 @@ impl App {
                                         crate::tui::tabs::alerts::AlertsAction::ConfigChanged => {
                                             let _ = save_config(&self.config, &self.config_path);
                                         }
-                                        crate::tui::tabs::alerts::AlertsAction::CreateAlert => {}
-                                        crate::tui::tabs::alerts::AlertsAction::EditAlert(_idx) => {}
+                                        crate::tui::tabs::alerts::AlertsAction::CreateAlert => {
+                                            self.active_dialog = Some(ActiveDialog::AlertForm(AlertFormDialog::new()));
+                                        }
+                                        crate::tui::tabs::alerts::AlertsAction::EditAlert(idx) => {
+                                            if let Some(alert) = self.config.alerts.get(idx) {
+                                                let dialog = AlertFormDialog::from_alert(alert);
+                                                self.active_dialog = Some(ActiveDialog::AlertForm(dialog));
+                                            }
+                                        }
                                         crate::tui::tabs::alerts::AlertsAction::DeleteAlert(idx) => {
                                             if idx < self.config.alerts.len() {
-                                                self.config.alerts.remove(idx);
-                                                let _ = save_config(&self.config, &self.config_path);
-                                                if self.alerts_tab.selected >= self.config.alerts.len()
-                                                    && self.alerts_tab.selected > 0
-                                                {
-                                                    self.alerts_tab.selected -= 1;
-                                                    self.alerts_tab.list_state.select(Some(self.alerts_tab.selected));
-                                                }
+                                                let name = self.config.alerts[idx].name.clone();
+                                                let dialog = ConfirmDialog::new(
+                                                    "Delete Alert".to_string(),
+                                                    format!("Delete alert \"{}\"?", name),
+                                                );
+                                                self.active_dialog = Some(ActiveDialog::Confirm(dialog, ConfirmAction::DeleteAlert(idx)));
                                             }
                                         }
                                     }
@@ -138,6 +167,73 @@ impl App {
         Ok(())
     }
 
+    fn handle_dialog_key(&mut self, key: crossterm::event::KeyEvent) {
+        let result = match &mut self.active_dialog {
+            Some(ActiveDialog::AlertForm(dialog)) => {
+                let r = dialog.handle_key(key);
+                match r {
+                    DialogResult::Cancel => Some(DialogResult::<()>::Cancel),
+                    DialogResult::Continue => None,
+                    DialogResult::Submit(alert) => {
+                        // Add or update alert in config
+                        if let Some(existing_id) = alert.id.into() {
+                            if let Some(pos) = self.config.alerts.iter().position(|a| a.id == existing_id) {
+                                self.config.alerts[pos] = alert;
+                            } else {
+                                self.config.alerts.push(alert);
+                            }
+                        }
+                        let _ = save_config(&self.config, &self.config_path);
+                        Some(DialogResult::<()>::Cancel)
+                    }
+                }
+            }
+            Some(ActiveDialog::Confirm(dialog, _)) => {
+                let r = dialog.handle_key(key);
+                match r {
+                    DialogResult::Cancel => Some(DialogResult::<()>::Cancel),
+                    DialogResult::Continue => None,
+                    DialogResult::Submit(_) => Some(DialogResult::<()>::Submit(())),
+                }
+            }
+            None => None,
+        };
+
+        match result {
+            Some(DialogResult::Submit(())) => {
+                // Execute the confirm action
+                let dialog = self.active_dialog.take();
+                if let Some(ActiveDialog::Confirm(_, action)) = dialog {
+                    match action {
+                        ConfirmAction::DeleteAlert(idx) => {
+                            if idx < self.config.alerts.len() {
+                                self.config.alerts.remove(idx);
+                                let _ = save_config(&self.config, &self.config_path);
+                                if self.alerts_tab.selected >= self.config.alerts.len()
+                                    && self.alerts_tab.selected > 0
+                                {
+                                    self.alerts_tab.selected -= 1;
+                                    self.alerts_tab.list_state.select(Some(self.alerts_tab.selected));
+                                }
+                            }
+                        }
+                        ConfirmAction::ClearResults => {
+                            self.results.clear();
+                            let _ = crate::daemon::results::save_results(
+                                &self.results,
+                                &self.results_path,
+                            );
+                        }
+                    }
+                }
+            }
+            Some(DialogResult::Cancel) => {
+                self.active_dialog = None;
+            }
+            _ => {}
+        }
+    }
+
     fn render(&self, frame: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -150,6 +246,14 @@ impl App {
             TabKind::Alerts => self.alerts_tab.render(frame, chunks[1], &self.theme, &self.config),
             TabKind::Results => self.results_tab.render(frame, chunks[1], &self.theme, &self.results),
             TabKind::Settings => self.settings_tab.render(frame, chunks[1], &self.theme, &self.config),
+        }
+
+        // Draw dialogs on top of normal content
+        if let Some(dialog) = &self.active_dialog {
+            match dialog {
+                ActiveDialog::AlertForm(d) => d.render(frame, frame.area(), &self.theme),
+                ActiveDialog::Confirm(d, _) => d.render(frame, frame.area(), &self.theme),
+            }
         }
     }
 

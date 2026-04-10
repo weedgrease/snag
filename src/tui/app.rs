@@ -200,15 +200,10 @@ impl App {
                                 }
                             }
                             TabKind::Settings => {
-                                if let Some(action) = self.settings_tab.handle_key(key, &mut self.config) {
-                                    match action {
-                                        crate::tui::tabs::settings::SettingsAction::ConfigChanged => {
-                                            let _ = save_config(&self.config, &self.config_path);
-                                            if let Some(ref tx) = self.config_tx {
-                                                let _ = tx.send(self.config.clone());
-                                            }
-                                        }
-                                        _ => {}
+                                if let Some(crate::tui::tabs::settings::SettingsAction::ConfigChanged) = self.settings_tab.handle_key(key, &mut self.config) {
+                                    let _ = save_config(&self.config, &self.config_path);
+                                    if let Some(ref tx) = self.config_tx {
+                                        let _ = tx.send(self.config.clone());
                                     }
                                 }
                             }

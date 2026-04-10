@@ -14,6 +14,7 @@ fn save_and_load_config_round_trips() {
             default_check_interval: Duration::from_secs(300),
             default_max_results: Some(20),
             default_notifier: NotifierKind::Terminal,
+            check_for_updates: true,
         },
         alerts: vec![
             Alert {
@@ -53,6 +54,21 @@ fn load_missing_config_returns_default() {
 
     assert!(config.alerts.is_empty());
     assert_eq!(config.settings.default_check_interval, Duration::from_secs(300));
+}
+
+#[test]
+fn load_config_without_check_for_updates_defaults_to_true() {
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("config.toml");
+
+    std::fs::write(
+        &config_path,
+        "[settings]\ndefault_check_interval = 300\ndefault_notifier = \"Terminal\"\n",
+    )
+    .unwrap();
+
+    let config = load_config(&config_path).unwrap();
+    assert!(config.settings.check_for_updates);
 }
 
 #[test]

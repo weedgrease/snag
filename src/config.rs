@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub settings: GlobalSettings,
@@ -18,6 +22,8 @@ pub struct GlobalSettings {
     pub default_check_interval: Duration,
     pub default_max_results: Option<u32>,
     pub default_notifier: NotifierKind,
+    #[serde(default = "default_true")]
+    pub check_for_updates: bool,
 }
 
 impl Default for AppConfig {
@@ -27,6 +33,7 @@ impl Default for AppConfig {
                 default_check_interval: Duration::from_secs(300),
                 default_max_results: Some(20),
                 default_notifier: NotifierKind::Terminal,
+                check_for_updates: true,
             },
             alerts: vec![],
         }

@@ -8,7 +8,7 @@ fn alert_round_trips_through_toml() {
     let alert = Alert {
         id: Uuid::nil(),
         name: "Test Alert".into(),
-        marketplaces: vec![MarketplaceKind::Ebay],
+        marketplaces: vec![MarketplaceKind::FacebookMarketplace],
         keywords: vec!["ps5".into()],
         exclude_keywords: vec!["broken".into()],
         price_min: Some(100.0),
@@ -30,7 +30,7 @@ fn alert_round_trips_through_toml() {
     assert_eq!(deserialized.keywords, vec!["ps5"]);
     assert_eq!(deserialized.exclude_keywords, vec!["broken"]);
     assert_eq!(deserialized.price_min, Some(100.0));
-    assert_eq!(deserialized.marketplaces, vec![MarketplaceKind::Ebay]);
+    assert_eq!(deserialized.marketplaces, vec![MarketplaceKind::FacebookMarketplace]);
     assert_eq!(deserialized.condition, Some(Condition::Used));
     assert!(deserialized.enabled);
 }
@@ -46,7 +46,7 @@ fn listing_round_trips_through_json() {
         image_url: Some("https://ebay.com/img/123.jpg".into()),
         location: Some("Denver, CO".into()),
         condition: Some(Condition::Used),
-        marketplace: MarketplaceKind::Ebay,
+        marketplace: MarketplaceKind::FacebookMarketplace,
         posted_at: Some(Utc::now()),
         found_at: Utc::now(),
     };
@@ -57,7 +57,7 @@ fn listing_round_trips_through_json() {
     assert_eq!(deserialized.id, "ebay-123");
     assert_eq!(deserialized.title, "PS5 Console");
     assert_eq!(deserialized.price, Some(299.99));
-    assert_eq!(deserialized.marketplace, MarketplaceKind::Ebay);
+    assert_eq!(deserialized.marketplace, MarketplaceKind::FacebookMarketplace);
 }
 
 #[test]

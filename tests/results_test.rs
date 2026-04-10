@@ -21,7 +21,7 @@ fn save_and_load_results_round_trips() {
             image_url: None,
             location: Some("Denver".into()),
             condition: Some(Condition::Used),
-            marketplace: MarketplaceKind::Ebay,
+            marketplace: MarketplaceKind::FacebookMarketplace,
             posted_at: None,
             found_at: Utc::now(),
         }],

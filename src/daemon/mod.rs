@@ -92,7 +92,7 @@ async fn run_scheduler(config_path: &Path, results_path: &Path) -> Result<()> {
                         continue;
                     }
 
-                    if let Err(e) = check_alert(alert, results_path).await {
+                    if let Err(e) = check_alert(alert, results_path, None).await {
                         error!("failed to check alert '{}': {e}", alert.name);
                     }
 
@@ -105,12 +105,12 @@ async fn run_scheduler(config_path: &Path, results_path: &Path) -> Result<()> {
     Ok(())
 }
 
-async fn check_alert(alert: &crate::types::Alert, results_path: &Path) -> Result<()> {
+async fn check_alert(alert: &crate::types::Alert, results_path: &Path, default_location: Option<&str>) -> Result<()> {
     let mut all_listings = vec![];
 
     for marketplace_kind in &alert.marketplaces {
         let marketplace = create_marketplace(*marketplace_kind);
-        match marketplace.search(alert).await {
+        match marketplace.search(alert, default_location).await {
             Ok(listings) => all_listings.extend(listings),
             Err(e) => {
                 error!(
@@ -185,7 +185,7 @@ pub async fn check_once_with_paths(config_path: &Path, results_path: &Path) -> R
             continue;
         }
 
-        check_alert(alert, results_path).await?;
+        check_alert(alert, results_path, None).await?;
     }
 
     Ok(())

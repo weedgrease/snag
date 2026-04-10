@@ -21,7 +21,7 @@ async fn check_once_runs_without_error_for_enabled_alerts() {
         alerts: vec![Alert {
             id: Uuid::new_v4(),
             name: "Test Alert".into(),
-            marketplaces: vec![MarketplaceKind::Ebay],
+            marketplaces: vec![MarketplaceKind::FacebookMarketplace],
             keywords: vec!["test".into()],
             exclude_keywords: vec![],
             price_min: None,
@@ -64,7 +64,7 @@ async fn check_once_skips_disabled_alerts() {
         alerts: vec![Alert {
             id: Uuid::new_v4(),
             name: "Disabled Alert".into(),
-            marketplaces: vec![MarketplaceKind::Ebay],
+            marketplaces: vec![MarketplaceKind::FacebookMarketplace],
             keywords: vec!["test".into()],
             exclude_keywords: vec![],
             price_min: None,

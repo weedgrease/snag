@@ -35,7 +35,7 @@ impl Marketplace for FacebookMarketplace {
         ]
     }
 
-    async fn search(&self, _alert: &Alert) -> Result<Vec<Listing>> {
+    async fn search(&self, _alert: &Alert, _default_location: Option<&str>) -> Result<Vec<Listing>> {
         tracing::warn!("Facebook Marketplace search not yet implemented, returning empty results");
         Ok(vec![])
     }

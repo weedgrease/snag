@@ -20,7 +20,7 @@ fn save_and_load_config_round_trips() {
             Alert {
                 id: Uuid::nil(),
                 name: "Test Alert".into(),
-                marketplaces: vec![MarketplaceKind::Ebay],
+                marketplaces: vec![MarketplaceKind::FacebookMarketplace],
                 keywords: vec!["ps5".into()],
                 exclude_keywords: vec!["broken".into()],
                 price_min: Some(100.0),

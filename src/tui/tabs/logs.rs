@@ -14,10 +14,10 @@ impl Default for LogsTab {
 
 impl LogsTab {
     pub fn new() -> Self {
-        Self {
-            state: tui_logger::TuiWidgetState::new()
-                .set_default_display_level(log::LevelFilter::Info),
-        }
+        let mut state = tui_logger::TuiWidgetState::new()
+            .set_default_display_level(log::LevelFilter::Info);
+        state.transition(tui_logger::TuiWidgetEvent::HideKey);
+        Self { state }
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) {

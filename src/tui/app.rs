@@ -36,13 +36,14 @@ pub struct App {
     pub update_info: Option<crate::update::UpdateInfo>,
     update_rx: Option<tokio::sync::oneshot::Receiver<Option<crate::update::UpdateInfo>>>,
     scheduler_rx: Option<tokio::sync::mpsc::Receiver<crate::scheduler::SchedulerEvent>>,
-    log_rx: Option<tokio::sync::mpsc::Receiver<crate::types::LogEntry>>,
-    log_tx: Option<tokio::sync::mpsc::Sender<crate::types::LogEntry>>,
     force_event_tx: Option<tokio::sync::mpsc::Sender<crate::scheduler::SchedulerEvent>>,
     config_tx: Option<tokio::sync::watch::Sender<AppConfig>>,
     _scheduler_lock: Option<std::fs::File>,
     last_results_mtime: Option<std::time::SystemTime>,
     last_status_mtime: Option<std::time::SystemTime>,
+    pub seen_ids: std::collections::HashSet<String>,
+    pub seen_path: std::path::PathBuf,
+    last_seen_mtime: Option<std::time::SystemTime>,
 }
 
 pub enum ActiveDialog {
@@ -64,29 +65,29 @@ impl App {
         let status_path = crate::daemon::results::status_path();
         let statuses = crate::daemon::results::load_status(&status_path).unwrap_or_default();
 
+        let seen_path = crate::daemon::results::seen_path();
+        let seen_ids = crate::daemon::results::load_seen(&seen_path).unwrap_or_default();
+
         let existing_ids: std::collections::HashSet<String> = results
             .iter()
             .flat_map(|r| r.listings.iter().map(|l| l.id.clone()))
             .collect();
 
-        let (scheduler_rx, config_tx, scheduler_lock, log_rx, log_tx, force_event_tx) =
+        let (scheduler_rx, config_tx, scheduler_lock, force_event_tx) =
             if let Some(lock) = crate::scheduler::try_acquire_scheduler_lock() {
                 let (event_tx, event_rx) =
                     tokio::sync::mpsc::channel::<crate::scheduler::SchedulerEvent>(64);
                 let (cfg_tx, cfg_rx) = tokio::sync::watch::channel(config.clone());
-                let (l_tx, log_rx) =
-                    tokio::sync::mpsc::channel::<crate::types::LogEntry>(200);
                 let force_tx = event_tx.clone();
                 let scheduler =
-                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids, l_tx.clone());
+                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids);
                 tokio::spawn(scheduler.run());
-                (Some(event_rx), Some(cfg_tx), Some(lock), Some(log_rx), Some(l_tx), Some(force_tx))
+                (Some(event_rx), Some(cfg_tx), Some(lock), Some(force_tx))
             } else {
-                (None, None, None, None, None, None)
+                (None, None, None, None)
             };
 
-        let mut logs_tab = crate::tui::tabs::logs::LogsTab::new();
-        logs_tab.scheduler_active = scheduler_rx.is_some();
+        let logs_tab = crate::tui::tabs::logs::LogsTab::new();
 
         let update_rx = if config.settings.check_for_updates {
             let (tx, rx) = tokio::sync::oneshot::channel();
@@ -117,13 +118,14 @@ impl App {
             update_info: None,
             update_rx,
             scheduler_rx,
-            log_rx,
-            log_tx,
             force_event_tx,
             config_tx,
             _scheduler_lock: scheduler_lock,
             last_results_mtime: None,
             last_status_mtime: None,
+            seen_ids,
+            seen_path,
+            last_seen_mtime: None,
         })
     }
 
@@ -205,19 +207,13 @@ impl App {
                                                     .collect();
                                                 let default_loc = self.config.settings.default_location.clone();
                                                 let event_tx = self.force_event_tx.clone();
-                                                let log_tx = self.log_tx.clone();
                                                 tokio::spawn(async move {
                                                     let Some(event_tx) = event_tx else { return };
-                                                    let (l_tx, _) = tokio::sync::mpsc::channel(200);
-                                                    let active_log = log_tx.unwrap_or(l_tx);
-                                                    let _ = active_log.try_send(crate::types::LogEntry::info(
-                                                        format!("Force checking alert: '{}'", alert.name),
-                                                    ));
+                                                    log::info!(target: "snag::scheduler", "Force checking alert: '{}'", alert.name);
                                                     match crate::scheduler::check_alert(
                                                         &alert,
                                                         &existing_ids,
                                                         default_loc.as_deref(),
-                                                        &active_log,
                                                     ).await {
                                                         Ok((status, new_listings)) => {
                                                             let result = if new_listings.is_empty() {
@@ -247,16 +243,20 @@ impl App {
                                 }
                             }
                             TabKind::Results => {
-                                if let Some(action) = self.results_tab.handle_key(key, &mut self.results) {
+                                if let Some(action) = self.results_tab.handle_key(key, &mut self.results, &mut self.seen_ids) {
                                     match action {
                                         crate::tui::tabs::results::ResultsAction::OpenUrl(url) => {
                                             let _ = open::that(&url);
+                                            let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
                                         }
                                         crate::tui::tabs::results::ResultsAction::ResultsChanged => {
                                             let _ = crate::daemon::results::save_results(
                                                 &self.results,
                                                 &self.results_path,
                                             );
+                                        }
+                                        crate::tui::tabs::results::ResultsAction::SeenChanged => {
+                                            let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
                                         }
                                     }
                                 }
@@ -333,13 +333,17 @@ impl App {
                     self.last_status_mtime = status_mtime;
                 }
 
-                last_results_refresh = Instant::now();
-            }
-
-            if let Some(ref mut rx) = self.log_rx {
-                while let Ok(entry) = rx.try_recv() {
-                    self.logs_tab.push(entry);
+                let seen_mtime = std::fs::metadata(&self.seen_path)
+                    .and_then(|m| m.modified())
+                    .ok();
+                if seen_mtime != self.last_seen_mtime {
+                    if let Ok(new_seen) = crate::daemon::results::load_seen(&self.seen_path) {
+                        self.seen_ids = new_seen;
+                    }
+                    self.last_seen_mtime = seen_mtime;
                 }
+
+                last_results_refresh = Instant::now();
             }
 
             if let Some(ref mut rx) = self.update_rx
@@ -446,10 +450,10 @@ impl App {
         self.render_tabs(frame, chunks[0]);
 
         match self.active_tab {
-            TabKind::Alerts => self.alerts_tab.render(frame, chunks[1], &self.theme, &self.config, &self.statuses),
-            TabKind::Results => self.results_tab.render(frame, chunks[1], &self.theme, &self.results),
+            TabKind::Alerts => self.alerts_tab.render(frame, chunks[1], &self.theme, &self.config, &self.statuses, &self.results, &self.seen_ids),
+            TabKind::Results => self.results_tab.render(frame, chunks[1], &self.theme, &self.results, &self.seen_ids),
             TabKind::Settings => self.settings_tab.render(frame, chunks[1], &self.theme, &self.config),
-            TabKind::Logs => self.logs_tab.render(frame, chunks[1], &self.theme),
+            TabKind::Logs => self.logs_tab.render(frame, chunks[1]),
         }
 
         self.render_status_bar(frame, chunks[2]);
@@ -510,7 +514,7 @@ impl App {
             TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce check [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
             TabKind::Settings => "[Enter] edit/toggle [↑↓] navigate [q]uit",
-            TabKind::Logs => "[↑↓] scroll [G] bottom [c] clear [q]uit",
+            TabKind::Logs => "[↑↓] scroll [Space] toggle [+/-] level [h]ide [f]ocus [q]uit",
         };
 
         let bar = Paragraph::new(Line::from(vec![

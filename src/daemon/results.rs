@@ -94,6 +94,65 @@ pub fn save_status(status: &[crate::types::CheckStatus], path: &Path) -> Result<
     Ok(())
 }
 
+pub fn seen_path() -> std::path::PathBuf {
+    crate::config::data_dir().join("seen.json")
+}
+
+pub fn load_seen(path: &Path) -> Result<std::collections::HashSet<String>> {
+    if !path.exists() {
+        return Ok(std::collections::HashSet::new());
+    }
+
+    let mut file = File::open(path)
+        .with_context(|| format!("failed to open seen at {}", path.display()))?;
+
+    file.lock_shared()
+        .context("failed to acquire shared lock on seen")?;
+
+    let mut content = String::new();
+    file.read_to_string(&mut content)
+        .context("failed to read seen")?;
+
+    file.unlock().context("failed to release lock on seen")?;
+
+    if content.trim().is_empty() {
+        return Ok(std::collections::HashSet::new());
+    }
+
+    let seen: Vec<String> =
+        serde_json::from_str(&content).context("failed to parse seen")?;
+
+    Ok(seen.into_iter().collect())
+}
+
+pub fn save_seen(seen: &std::collections::HashSet<String>, path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create data directory {}", parent.display()))?;
+    }
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+        .with_context(|| format!("failed to open seen for writing at {}", path.display()))?;
+
+    file.lock_exclusive()
+        .context("failed to acquire exclusive lock on seen")?;
+
+    let seen_vec: Vec<&String> = seen.iter().collect();
+    let content = serde_json::to_string(&seen_vec).context("failed to serialize seen")?;
+
+    file.write_all(content.as_bytes())
+        .context("failed to write seen")?;
+
+    file.unlock()
+        .context("failed to release lock on seen")?;
+
+    Ok(())
+}
+
 pub fn save_results(results: &[AlertResult], path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)

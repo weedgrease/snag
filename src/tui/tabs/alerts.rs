@@ -11,6 +11,7 @@ use ratatui::Frame;
 pub struct AlertsTab {
     pub selected: usize,
     pub list_state: ListState,
+    pub listing_scroll: usize,
 }
 
 impl Default for AlertsTab {
@@ -26,6 +27,7 @@ impl AlertsTab {
         Self {
             selected: 0,
             list_state,
+            listing_scroll: 0,
         }
     }
 
@@ -37,12 +39,14 @@ impl AlertsTab {
                 if alert_count > 0 && self.selected > 0 {
                     self.selected -= 1;
                     self.list_state.select(Some(self.selected));
+                    self.listing_scroll = 0;
                 }
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 if alert_count > 0 && self.selected < alert_count - 1 {
                     self.selected += 1;
                     self.list_state.select(Some(self.selected));
+                    self.listing_scroll = 0;
                 }
             }
             KeyCode::Char(' ') => {
@@ -75,14 +79,15 @@ impl AlertsTab {
         None
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus]) {
+    #[allow(clippy::too_many_arguments)]
+    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
             .split(area);
 
         self.render_list(frame, chunks[0], theme, config);
-        self.render_detail(frame, chunks[1], theme, config, statuses);
+        self.render_detail(frame, chunks[1], theme, config, statuses, results, seen_ids);
     }
 
     fn render_list(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig) {
@@ -127,7 +132,8 @@ impl AlertsTab {
         frame.render_stateful_widget(list, area, &mut state);
     }
 
-    fn render_detail(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus]) {
+    #[allow(clippy::too_many_arguments)]
+    fn render_detail(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
         let block = Block::default()
             .title(Span::styled(
                 " Details ",
@@ -188,7 +194,7 @@ impl AlertsTab {
         let status = if alert.enabled { "Enabled" } else { "Disabled" };
         let status_color = if alert.enabled { theme.enabled } else { theme.disabled };
 
-        // Split inner into: name (2 lines), table (flexible), status section (3 lines).
+        // Split inner into: name (2 lines), table (flexible), status section (1-3 lines), listings (remaining).
         let check_status = statuses.iter().find(|s| s.alert_id == alert.id);
         let status_height = if check_status.is_some() { 3 } else { 1 };
         let chunks = Layout::default()
@@ -197,6 +203,7 @@ impl AlertsTab {
                 Constraint::Length(2),
                 Constraint::Min(1),
                 Constraint::Length(status_height),
+                Constraint::Min(0),
             ])
             .split(inner);
 
@@ -316,6 +323,49 @@ impl AlertsTab {
             ];
             let status_table = Table::new(status_rows, widths);
             frame.render_widget(status_table, chunks[2]);
+        }
+
+        // Listings section.
+        let alert_listings: Vec<&crate::types::Listing> = results
+            .iter()
+            .filter(|r| r.alert_id == alert.id)
+            .flat_map(|r| r.listings.iter())
+            .collect();
+
+        let listings_area = chunks[3];
+        if listings_area.height > 1 {
+            let header = Paragraph::new(Span::styled(
+                format!("Listings ({})", alert_listings.len()),
+                Style::default().fg(theme.fg_dim).add_modifier(Modifier::BOLD),
+            ));
+            frame.render_widget(header, Rect { height: 1, ..listings_area });
+
+            if listings_area.height > 2 {
+                let list_area = Rect {
+                    y: listings_area.y + 1,
+                    height: listings_area.height - 1,
+                    ..listings_area
+                };
+                let items: Vec<ListItem> = alert_listings
+                    .iter()
+                    .skip(self.listing_scroll)
+                    .map(|listing| {
+                        let price_str = listing.price
+                            .map(|p| format!("${:.0}", p))
+                            .unwrap_or_else(|| "Free".into());
+                        let is_seen = seen_ids.contains(&listing.id);
+                        let indicator = if is_seen { "  " } else { "● " };
+                        let indicator_color = if is_seen { theme.fg_dim } else { theme.unread };
+                        ListItem::new(Line::from(vec![
+                            Span::styled(indicator, Style::default().fg(indicator_color)),
+                            Span::styled(listing.title.as_str(), Style::default().fg(theme.fg)),
+                            Span::styled(format!("  {}", price_str), Style::default().fg(theme.accent)),
+                        ]))
+                    })
+                    .collect();
+                let list = List::new(items);
+                frame.render_widget(list, list_area);
+            }
         }
     }
 }

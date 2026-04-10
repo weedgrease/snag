@@ -52,6 +52,7 @@ impl ResultsTab {
         &mut self,
         key: KeyEvent,
         results: &mut Vec<AlertResult>,
+        seen_ids: &mut std::collections::HashSet<String>,
     ) -> Option<ResultsAction> {
         let flat = Self::flatten(results);
         let count = flat.len();
@@ -71,16 +72,17 @@ impl ResultsTab {
             }
             KeyCode::Char('o') => {
                 if let Some(entry) = flat.get(self.selected) {
-                    let url = results[entry.result_idx].listings[entry.listing_idx]
-                        .url
-                        .clone();
-                    results[entry.result_idx].seen = true;
+                    let listing = &results[entry.result_idx].listings[entry.listing_idx];
+                    let url = listing.url.clone();
+                    seen_ids.insert(listing.id.clone());
                     return Some(ResultsAction::OpenUrl(url));
                 }
             }
             KeyCode::Char('m') => {
                 if let Some(entry) = flat.get(self.selected) {
-                    results[entry.result_idx].seen = true;
+                    let listing = &results[entry.result_idx].listings[entry.listing_idx];
+                    seen_ids.insert(listing.id.clone());
+                    return Some(ResultsAction::SeenChanged);
                 }
             }
             KeyCode::Char('c') => {
@@ -101,6 +103,7 @@ impl ResultsTab {
         area: Rect,
         theme: &Theme,
         results: &[AlertResult],
+        seen_ids: &std::collections::HashSet<String>,
     ) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -108,7 +111,7 @@ impl ResultsTab {
             .split(area);
 
         let flat = Self::flatten(results);
-        self.render_list(frame, chunks[0], theme, results, &flat);
+        self.render_list(frame, chunks[0], theme, results, &flat, seen_ids);
         self.render_detail(frame, chunks[1], theme, results, &flat);
     }
 
@@ -119,16 +122,17 @@ impl ResultsTab {
         theme: &Theme,
         results: &[AlertResult],
         flat: &[FlatListing],
+        seen_ids: &std::collections::HashSet<String>,
     ) {
         let items: Vec<ListItem> = flat
             .iter()
             .enumerate()
             .map(|(i, entry)| {
                 let listing = &results[entry.result_idx].listings[entry.listing_idx];
-                let seen = results[entry.result_idx].seen;
+                let is_seen = seen_ids.contains(&listing.id);
 
-                let indicator = if seen { "  " } else { "● " };
-                let indicator_color = if seen { theme.fg_dim } else { theme.unread };
+                let indicator = if is_seen { "  " } else { "● " };
+                let indicator_color = if is_seen { theme.fg_dim } else { theme.unread };
 
                 let title = if listing.title.len() > 25 {
                     format!("{}…", &listing.title[..24])
@@ -287,4 +291,5 @@ impl ResultsTab {
 pub enum ResultsAction {
     OpenUrl(String),
     ResultsChanged,
+    SeenChanged,
 }

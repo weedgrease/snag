@@ -330,8 +330,6 @@ impl Marketplace for FacebookMarketplace {
                 continue;
             }
 
-            log::debug!(target: "snag::facebook", "Listing '{}' price data: {:?}", title, node.listing_price);
-
             let price = node
                 .listing_price
                 .as_ref()

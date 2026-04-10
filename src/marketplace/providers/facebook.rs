@@ -127,39 +127,22 @@ impl FacebookMarketplace {
         lat: f64,
         lng: f64,
     ) -> serde_json::Value {
-        let mut filters = serde_json::Map::new();
-
-        filters.insert(
-            "commerce_search_and_rp_available".into(),
-            serde_json::json!({"name": "commerce_search_and_rp_available", "value": "true"}),
-        );
-
-        filters.insert(
-            "commerce_search_and_rp_condition".into(),
-            serde_json::json!({"name": "commerce_search_and_rp_condition", "value": alert.condition.map(|c| match c {
-                Condition::New => "new",
-                Condition::LikeNew => "used_like_new",
-                Condition::Used => "used_good",
-                Condition::ForParts => "used_fair",
-            }).unwrap_or("all")}),
-        );
-
-        if alert.price_min.is_some() || alert.price_max.is_some() {
-            let min = alert.price_min.unwrap_or(0.0) as i64;
-            let max = alert.price_max.unwrap_or(999_999_999.0) as i64;
-            filters.insert(
-                "commerce_search_and_rp_price_range".into(),
-                serde_json::json!({
-                    "name": "commerce_search_and_rp_price_range",
-                    "value": format!("{{\"currency\":\"USD\",\"min_price\":{},\"max_price\":{}}}", min * 100, max * 100)
-                }),
-            );
-        }
-
         let radius_km = alert
             .radius_miles
             .map(|m| (m as f64 * 1.60934) as i64)
-            .unwrap_or(100);
+            .unwrap_or(16);
+
+        let price_lower = alert.price_min.map(|p| (p * 100.0) as i64).unwrap_or(0);
+        let price_upper = alert.price_max.map(|p| (p * 100.0) as i64).unwrap_or(214748364700);
+
+        let condition: serde_json::Value = alert.condition.map(|c| {
+            serde_json::Value::String(match c {
+                Condition::New => "new".into(),
+                Condition::LikeNew => "used_like_new".into(),
+                Condition::Used => "used_good".into(),
+                Condition::ForParts => "used_fair".into(),
+            })
+        }).unwrap_or(serde_json::Value::Null);
 
         let keywords = alert.keywords.join(" ");
 
@@ -174,12 +157,17 @@ impl FacebookMarketplace {
                     "commerce_enable_local_pickup": true,
                     "commerce_enable_shipping": true,
                     "commerce_search_and_rp_available": true,
-                    "commerce_search_and_rp_condition": null,
+                    "commerce_search_and_rp_condition": condition,
+                    "commerce_search_and_rp_ctime_days": null,
                     "filter_location_latitude": lat,
                     "filter_location_longitude": lng,
-                    "filter_radius_kms": radius_km
+                    "filter_price_lower_bound": price_lower,
+                    "filter_price_upper_bound": price_upper,
+                    "filter_radius_km": radius_km
                 },
-                "custom_request_params": serde_json::Value::Object(filters)
+                "custom_request_params": {
+                    "surface": "SEARCH"
+                }
             }
         })
     }

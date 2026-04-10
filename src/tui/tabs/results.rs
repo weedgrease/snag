@@ -179,7 +179,7 @@ impl ResultsTab {
                         .add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(Style::default().fg(theme.accent)),
         );
 
         let mut state = self.list_state;

@@ -162,6 +162,7 @@ impl AlertsTab {
             })
             .collect();
 
+        let list_border_color = if !self.listing_focus { theme.accent } else { theme.border };
         let list = List::new(items).block(
             Block::default()
                 .title(Span::styled(
@@ -171,7 +172,7 @@ impl AlertsTab {
                         .add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.border)),
+                .border_style(Style::default().fg(list_border_color)),
         );
 
         let mut state = self.list_state;
@@ -188,6 +189,7 @@ impl AlertsTab {
 
     #[allow(clippy::too_many_arguments)]
     fn render_detail(&mut self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
+        let detail_border_color = if self.listing_focus { theme.accent } else { theme.border };
         let block = Block::default()
             .title(Span::styled(
                 " Details ",
@@ -196,7 +198,7 @@ impl AlertsTab {
                     .add_modifier(Modifier::BOLD),
             ))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.border));
+            .border_style(Style::default().fg(detail_border_color));
 
         let inner = block.inner(area);
         frame.render_widget(block, area);

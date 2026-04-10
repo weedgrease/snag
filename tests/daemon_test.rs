@@ -40,7 +40,7 @@ async fn check_once_runs_without_error_for_enabled_alerts() {
 
     save_config(&config, &config_path).unwrap();
 
-    snag::daemon::check_once_with_paths(&config_path, &results_path)
+    snag::daemon::check_once_with_paths(&config_path, &results_path, &dir.path().join("status.json"))
         .await
         .unwrap();
 
@@ -84,7 +84,7 @@ async fn check_once_skips_disabled_alerts() {
 
     save_config(&config, &config_path).unwrap();
 
-    snag::daemon::check_once_with_paths(&config_path, &results_path)
+    snag::daemon::check_once_with_paths(&config_path, &results_path, &dir.path().join("status.json"))
         .await
         .unwrap();
 

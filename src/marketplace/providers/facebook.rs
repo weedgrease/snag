@@ -1,12 +1,11 @@
 use crate::marketplace::Marketplace;
-use crate::types::{Alert, Condition, FilterKind, Listing, LogEntry, MarketplaceKind};
+use crate::types::{Alert, Condition, FilterKind, Listing, MarketplaceKind};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::Utc;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tokio::sync::mpsc;
 
 const GRAPHQL_URL: &str = "https://www.facebook.com/api/graphql/";
 const LOCATION_DOC_ID: &str = "5585904654783609";
@@ -36,17 +35,13 @@ impl FacebookMarketplace {
         }
     }
 
-    async fn resolve_location(
-        &self,
-        query: &str,
-        log_tx: &mpsc::Sender<LogEntry>,
-    ) -> Result<(f64, f64)> {
+    async fn resolve_location(&self, query: &str) -> Result<(f64, f64)> {
         if let Some(cached) = self.location_cache.lock().unwrap().get(query) {
-            let _ = log_tx.try_send(LogEntry::debug(format!("Location cache hit: {}", query)));
+            log::debug!(target: "snag::facebook", "Location cache hit: {}", query);
             return Ok(*cached);
         }
 
-        let _ = log_tx.try_send(LogEntry::info(format!("Resolving location: {}", query)));
+        log::info!(target: "snag::facebook", "Resolving location: {}", query);
 
         let variables = serde_json::json!({
             "params": {
@@ -69,14 +64,13 @@ impl FacebookMarketplace {
             .context("failed to fetch location")?;
 
         let status = response.status();
-        let _ = log_tx.try_send(LogEntry::debug(format!("Location API status: {}", status)));
+        log::debug!(target: "snag::facebook", "Location API status: {}", status);
 
         let body_text = response.text().await.context("failed to read location response body")?;
-        let _ = log_tx.try_send(LogEntry::debug(format!(
-            "Location API response ({} bytes): {}",
+        log::debug!(target: "snag::facebook", "Location API response ({} bytes): {}",
             body_text.len(),
             if body_text.len() > 500 { &body_text[..500] } else { &body_text }
-        )));
+        );
 
         let body: serde_json::Value = serde_json::from_str(&body_text)
             .context("failed to parse location response as JSON")?;
@@ -113,10 +107,7 @@ impl FacebookMarketplace {
             .unwrap()
             .insert(query.to_string(), (lat, lng));
 
-        let _ = log_tx.try_send(LogEntry::debug(format!(
-            "Location resolved: {} -> ({}, {})",
-            query, lat, lng
-        )));
+        log::debug!(target: "snag::facebook", "Location resolved: {} -> ({}, {})", query, lat, lng);
 
         Ok((lat, lng))
     }
@@ -212,7 +203,7 @@ struct ListingNode {
     location: Option<LocationNode>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct ListingPrice {
     amount: Option<String>,
     currency: Option<String>,
@@ -265,7 +256,6 @@ impl Marketplace for FacebookMarketplace {
         &self,
         alert: &Alert,
         default_location: Option<&str>,
-        log_tx: &mpsc::Sender<LogEntry>,
     ) -> Result<Vec<Listing>> {
         let location_query = alert
             .location
@@ -273,12 +263,9 @@ impl Marketplace for FacebookMarketplace {
             .or(default_location)
             .context("no location set for Facebook Marketplace search")?;
 
-        let (lat, lng) = self.resolve_location(location_query, log_tx).await?;
+        let (lat, lng) = self.resolve_location(location_query).await?;
 
-        let _ = log_tx.try_send(LogEntry::info(format!(
-            "Searching Facebook Marketplace: '{}'",
-            alert.keywords.join(" ")
-        )));
+        log::info!(target: "snag::facebook", "Searching Facebook Marketplace: '{}'", alert.keywords.join(" "));
 
         let variables = self.build_search_variables(alert, lat, lng);
 
@@ -295,14 +282,13 @@ impl Marketplace for FacebookMarketplace {
             .context("failed to search Facebook Marketplace")?;
 
         let status = response.status();
-        let _ = log_tx.try_send(LogEntry::debug(format!("Search API status: {}", status)));
+        log::debug!(target: "snag::facebook", "Search API status: {}", status);
 
         let body_text = response.text().await.context("failed to read search response body")?;
-        let _ = log_tx.try_send(LogEntry::debug(format!(
-            "Search API response ({} bytes): {}",
+        log::debug!(target: "snag::facebook", "Search API response ({} bytes): {}",
             body_text.len(),
             if body_text.len() > 500 { &body_text[..500] } else { &body_text }
-        )));
+        );
 
         let body: SearchResponse = serde_json::from_str(&body_text)
             .context("failed to parse search response as JSON")?;
@@ -314,7 +300,7 @@ impl Marketplace for FacebookMarketplace {
             .map(|fu| fu.edges)
             .unwrap_or_default();
 
-        let _ = log_tx.try_send(LogEntry::debug(format!("Search returned {} edges", edges.len())));
+        log::debug!(target: "snag::facebook", "Search returned {} edges", edges.len());
 
         let now = Utc::now();
         let exclude_lower: Vec<String> = alert
@@ -343,12 +329,13 @@ impl Marketplace for FacebookMarketplace {
                 continue;
             }
 
+            log::debug!(target: "snag::facebook", "Listing '{}' price data: {:?}", title, node.listing_price);
+
             let price = node
                 .listing_price
                 .as_ref()
                 .and_then(|p| p.amount.as_ref())
-                .and_then(|a| a.parse::<f64>().ok())
-                .map(|cents| cents / 100.0);
+                .and_then(|a| a.parse::<f64>().ok());
 
             let currency = node
                 .listing_price
@@ -384,10 +371,7 @@ impl Marketplace for FacebookMarketplace {
             });
         }
 
-        let _ = log_tx.try_send(LogEntry::info(format!(
-            "Facebook returned {} listings",
-            listings.len()
-        )));
+        log::info!(target: "snag::facebook", "Facebook returned {} listings", listings.len());
 
         Ok(listings)
     }

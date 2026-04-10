@@ -13,6 +13,9 @@ use ratatui::Terminal;
 use std::io;
 
 pub async fn run() -> Result<()> {
+    tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
+    tui_logger::set_default_level(log::LevelFilter::Trace);
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;

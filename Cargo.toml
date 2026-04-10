@@ -5,6 +5,8 @@ edition = "2024"
 description = "CLI tool for marketplace listing alerts"
 
 [dependencies]
+log = "0.4"
+tui-logger = "0.18"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }

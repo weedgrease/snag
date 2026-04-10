@@ -108,56 +108,6 @@ pub enum FilterKind {
     Category,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum LogLevel {
-    #[default]
-    Info,
-    Debug,
-    Error,
-}
-
-impl std::fmt::Display for LogLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Info => write!(f, "Info"),
-            Self::Debug => write!(f, "Debug"),
-            Self::Error => write!(f, "Error"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LogEntry {
-    pub timestamp: DateTime<Utc>,
-    pub level: LogLevel,
-    pub message: String,
-}
-
-impl LogEntry {
-    pub fn info(message: impl Into<String>) -> Self {
-        Self {
-            timestamp: Utc::now(),
-            level: LogLevel::Info,
-            message: message.into(),
-        }
-    }
-
-    pub fn debug(message: impl Into<String>) -> Self {
-        Self {
-            timestamp: Utc::now(),
-            level: LogLevel::Debug,
-            message: message.into(),
-        }
-    }
-
-    pub fn error(message: impl Into<String>) -> Self {
-        Self {
-            timestamp: Utc::now(),
-            level: LogLevel::Error,
-            message: message.into(),
-        }
-    }
-}
 
 pub mod duration_secs {
     use serde::{Deserialize, Deserializer, Serializer};

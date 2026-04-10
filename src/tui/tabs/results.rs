@@ -142,6 +142,8 @@ impl ResultsTab {
         flat: &[FlatListing],
         seen_ids: &std::collections::HashSet<String>,
     ) {
+        let inner_width = area.width.saturating_sub(2) as usize;
+
         let items: Vec<ListItem> = flat
             .iter()
             .enumerate()
@@ -156,6 +158,14 @@ impl ResultsTab {
                     .map(|p| format!("${:.0} ", p))
                     .unwrap_or_default();
 
+                let prefix_len = indicator.len() + price_str.len();
+                let max_title = inner_width.saturating_sub(prefix_len);
+                let title = if listing.title.len() > max_title && max_title > 1 {
+                    format!("{}…", &listing.title[..max_title.saturating_sub(1)])
+                } else {
+                    listing.title.clone()
+                };
+
                 let style = if i == self.selected {
                     Style::default().bg(theme.selected_bg).fg(theme.fg)
                 } else {
@@ -165,7 +175,7 @@ impl ResultsTab {
                 ListItem::new(Line::from(vec![
                     Span::styled(indicator, Style::default().fg(indicator_color)),
                     Span::styled(price_str, Style::default().fg(theme.accent)),
-                    Span::styled(listing.title.clone(), style),
+                    Span::styled(title, style),
                 ]))
             })
             .collect();

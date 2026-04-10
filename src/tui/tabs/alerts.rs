@@ -137,6 +137,8 @@ impl AlertsTab {
     }
 
     fn render_list(&self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig) {
+        let inner_width = area.width.saturating_sub(2) as usize;
+
         let items: Vec<ListItem> = config
             .alerts
             .iter()
@@ -149,6 +151,14 @@ impl AlertsTab {
                     theme.disabled
                 };
 
+                let prefix_len = 3;
+                let max_name = inner_width.saturating_sub(prefix_len);
+                let name = if alert.name.len() > max_name && max_name > 1 {
+                    format!("{}…", &alert.name[..max_name.saturating_sub(1)])
+                } else {
+                    alert.name.clone()
+                };
+
                 let style = if i == self.selected {
                     Style::default().bg(theme.selected_bg).fg(theme.fg)
                 } else {
@@ -157,7 +167,7 @@ impl AlertsTab {
 
                 ListItem::new(Line::from(vec![
                     Span::styled(format!(" {} ", indicator), Style::default().fg(color)),
-                    Span::styled(&alert.name, style),
+                    Span::styled(name, style),
                 ]))
             })
             .collect();
@@ -422,6 +432,8 @@ impl AlertsTab {
                     ..listings_area
                 };
 
+                let list_inner_width = list_area.width as usize;
+
                 let items: Vec<ListItem> = alert_listings
                     .iter()
                     .enumerate()
@@ -432,6 +444,13 @@ impl AlertsTab {
                         let is_seen = seen_ids.contains(&listing.id);
                         let indicator = if is_seen { "  " } else { "● " };
                         let indicator_color = if is_seen { theme.fg_dim } else { theme.unread };
+                        let prefix_len = indicator.len() + price_str.len();
+                        let max_title = list_inner_width.saturating_sub(prefix_len);
+                        let title = if listing.title.len() > max_title && max_title > 1 {
+                            format!("{}…", &listing.title[..max_title.saturating_sub(1)])
+                        } else {
+                            listing.title.clone()
+                        };
                         let is_listing_selected = self.listing_focus && i == self.listing_selected;
                         let title_style = if is_listing_selected {
                             Style::default().bg(theme.selected_bg).fg(theme.fg)
@@ -441,7 +460,7 @@ impl AlertsTab {
                         ListItem::new(Line::from(vec![
                             Span::styled(indicator, Style::default().fg(indicator_color)),
                             Span::styled(price_str, Style::default().fg(theme.accent)),
-                            Span::styled(listing.title.as_str(), title_style),
+                            Span::styled(title, title_style),
                         ]))
                     })
                     .collect();

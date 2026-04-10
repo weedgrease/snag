@@ -125,11 +125,14 @@ impl App {
                                             let _ = save_config(&self.config, &self.config_path);
                                         }
                                         crate::tui::tabs::alerts::AlertsAction::CreateAlert => {
-                                            self.active_dialog = Some(ActiveDialog::AlertForm(AlertFormDialog::new()));
+                                            let mut dialog = AlertFormDialog::new();
+                                            dialog.set_default_location(self.config.settings.default_location.clone());
+                                            self.active_dialog = Some(ActiveDialog::AlertForm(dialog));
                                         }
                                         crate::tui::tabs::alerts::AlertsAction::EditAlert(idx) => {
                                             if let Some(alert) = self.config.alerts.get(idx) {
-                                                let dialog = AlertFormDialog::from_alert(alert);
+                                                let mut dialog = AlertFormDialog::from_alert(alert);
+                                                dialog.set_default_location(self.config.settings.default_location.clone());
                                                 self.active_dialog = Some(ActiveDialog::AlertForm(dialog));
                                             }
                                         }

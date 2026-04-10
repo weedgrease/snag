@@ -15,6 +15,7 @@ pub struct AlertFormDialog {
     pub selected_field: usize,
     pub editing: bool,
     pub existing_id: Option<Uuid>,
+    pub default_location: Option<String>,
 }
 
 pub struct FormField {
@@ -76,6 +77,7 @@ impl AlertFormDialog {
             selected_field: 0,
             editing: false,
             existing_id: None,
+            default_location: None,
         }
     }
 
@@ -107,7 +109,12 @@ impl AlertFormDialog {
             selected_field: 0,
             editing: false,
             existing_id: Some(alert.id),
+            default_location: None,
         }
+    }
+
+    pub fn set_default_location(&mut self, loc: Option<String>) {
+        self.default_location = loc;
     }
 
     pub fn to_alert(&self) -> Option<Alert> {
@@ -154,6 +161,11 @@ impl AlertFormDialog {
             let v = self.fields[6].value.trim().to_string();
             if v.is_empty() { None } else { Some(v) }
         };
+
+        let has_facebook = marketplaces.contains(&MarketplaceKind::FacebookMarketplace);
+        if has_facebook && location.is_none() && self.default_location.is_none() {
+            return None;
+        }
 
         let radius_miles = self.fields[7].value.trim().parse::<u32>().ok();
 

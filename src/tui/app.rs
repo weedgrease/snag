@@ -554,7 +554,7 @@ impl App {
             TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce [l]istings [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
             TabKind::Settings => "[Enter] edit/toggle [↑↓] navigate [q]uit",
-            TabKind::Logs => "[↑↓] scroll [Enter] selector [←→] level [f]ocus target [Esc] back [q]uit",
+            TabKind::Logs => "[↑↓] navigate [←→] level [f]ocus target [Esc] logs view [q]uit",
         };
 
         let bar = Paragraph::new(Line::from(vec![

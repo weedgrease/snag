@@ -21,7 +21,7 @@ impl LogsTab {
         Self {
             state: tui_logger::TuiWidgetState::new()
                 .set_default_display_level(log::LevelFilter::Info),
-            selector_focused: false,
+            selector_focused: true,
         }
     }
 
@@ -43,7 +43,7 @@ impl LogsTab {
                 KeyCode::Char('f') => {
                     self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
                 }
-                KeyCode::Esc | KeyCode::Enter => {
+                KeyCode::Esc => {
                     self.selector_focused = false;
                 }
                 _ => {}
@@ -56,7 +56,7 @@ impl LogsTab {
                 KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown => {
                     self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey);
                 }
-                KeyCode::Enter => {
+                KeyCode::Esc | KeyCode::Enter => {
                     self.selector_focused = true;
                 }
                 KeyCode::Char('f') => {

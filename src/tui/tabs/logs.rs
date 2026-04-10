@@ -28,6 +28,8 @@ impl LogsTab {
             KeyCode::PageDown => self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey),
             KeyCode::Up => self.state.transition(tui_logger::TuiWidgetEvent::UpKey),
             KeyCode::Down => self.state.transition(tui_logger::TuiWidgetEvent::DownKey),
+            KeyCode::Char('+') => self.state.transition(tui_logger::TuiWidgetEvent::PlusKey),
+            KeyCode::Char('-') => self.state.transition(tui_logger::TuiWidgetEvent::MinusKey),
             KeyCode::Char('h') => self.state.transition(tui_logger::TuiWidgetEvent::HideKey),
             KeyCode::Char('f') => self.state.transition(tui_logger::TuiWidgetEvent::FocusKey),
             _ => {}

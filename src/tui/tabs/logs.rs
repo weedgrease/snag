@@ -8,6 +8,7 @@ use ratatui::Frame;
 pub struct LogsTab {
     state: tui_logger::TuiWidgetState,
     selector_focused: bool,
+    target_selected: bool,
 }
 
 impl Default for LogsTab {
@@ -22,6 +23,7 @@ impl LogsTab {
             state: tui_logger::TuiWidgetState::new()
                 .set_default_display_level(log::LevelFilter::Info),
             selector_focused: true,
+            target_selected: false,
         }
     }
 
@@ -41,8 +43,11 @@ impl LogsTab {
                     self.state.transition(tui_logger::TuiWidgetEvent::RightKey);
                 }
                 KeyCode::Enter => {
+                    self.target_selected = !self.target_selected;
                     self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
-                    self.selector_focused = false;
+                    if self.target_selected {
+                        self.selector_focused = false;
+                    }
                 }
                 _ => {}
             }
@@ -85,6 +90,8 @@ impl LogsTab {
 
         let hl_style = if self.selector_focused {
             Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else if self.target_selected {
+            Style::default().fg(Color::Cyan)
         } else {
             Style::default().fg(Color::White)
         };

@@ -74,8 +74,8 @@ impl App {
         loop {
             terminal.draw(|f| self.render(f))?;
 
-            if event::poll(Duration::from_millis(50))? {
-                if let Event::Key(key) = event::read()? {
+            if event::poll(Duration::from_millis(50))?
+                && let Event::Key(key) = event::read()? {
                     if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
                         self.should_quit = true;
                         continue;
@@ -149,7 +149,6 @@ impl App {
                             }
                         }
                     }
-                }
             }
 
             if last_results_refresh.elapsed() >= results_refresh_interval {

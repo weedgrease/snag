@@ -11,6 +11,12 @@ impl EbayMarketplace {
     }
 }
 
+impl Default for EbayMarketplace {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Marketplace for EbayMarketplace {
     fn name(&self) -> &str {

@@ -13,6 +13,12 @@ pub struct SettingsTab {
     pub field_count: usize,
 }
 
+impl Default for SettingsTab {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SettingsTab {
     pub fn new() -> Self {
         Self {
@@ -121,39 +127,37 @@ impl SettingsTab {
             format!("{}s", interval_secs)
         };
 
-        let mut lines = vec![];
-        lines.push(Line::from(Span::styled(
-            "Defaults",
-            Style::default()
-                .fg(theme.fg)
-                .add_modifier(Modifier::BOLD),
-        )));
-        lines.push(Line::from(""));
-
-        lines.push(Line::from(vec![
-            Span::styled("  Check interval  ", Style::default().fg(theme.fg_dim)),
-            Span::styled(interval_str, Style::default().fg(theme.fg)),
-        ]));
-
-        lines.push(Line::from(vec![
-            Span::styled("  Max results     ", Style::default().fg(theme.fg_dim)),
-            Span::styled(
-                config
-                    .settings
-                    .default_max_results
-                    .map(|m| m.to_string())
-                    .unwrap_or_else(|| "unlimited".into()),
-                Style::default().fg(theme.fg),
-            ),
-        ]));
-
-        lines.push(Line::from(vec![
-            Span::styled("  Notification    ", Style::default().fg(theme.fg_dim)),
-            Span::styled(
-                config.settings.default_notifier.to_string(),
-                Style::default().fg(theme.fg),
-            ),
-        ]));
+        let lines = vec![
+            Line::from(Span::styled(
+                "Defaults",
+                Style::default()
+                    .fg(theme.fg)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("  Check interval  ", Style::default().fg(theme.fg_dim)),
+                Span::styled(interval_str, Style::default().fg(theme.fg)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Max results     ", Style::default().fg(theme.fg_dim)),
+                Span::styled(
+                    config
+                        .settings
+                        .default_max_results
+                        .map(|m| m.to_string())
+                        .unwrap_or_else(|| "unlimited".into()),
+                    Style::default().fg(theme.fg),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled("  Notification    ", Style::default().fg(theme.fg_dim)),
+                Span::styled(
+                    config.settings.default_notifier.to_string(),
+                    Style::default().fg(theme.fg),
+                ),
+            ]),
+        ];
 
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
         frame.render_widget(paragraph, area);

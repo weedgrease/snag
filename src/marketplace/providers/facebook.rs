@@ -11,6 +11,12 @@ impl FacebookMarketplace {
     }
 }
 
+impl Default for FacebookMarketplace {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Marketplace for FacebookMarketplace {
     fn name(&self) -> &str {

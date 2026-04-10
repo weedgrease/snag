@@ -50,6 +50,12 @@ impl FormField {
     }
 }
 
+impl Default for AlertFormDialog {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AlertFormDialog {
     pub fn new() -> Self {
         Self {

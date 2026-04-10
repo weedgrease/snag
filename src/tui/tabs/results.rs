@@ -18,6 +18,12 @@ struct FlatListing {
     pub listing_idx: usize,
 }
 
+impl Default for ResultsTab {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResultsTab {
     pub fn new() -> Self {
         let mut list_state = ListState::default();
@@ -155,7 +161,7 @@ impl ResultsTab {
                 .border_style(Style::default().fg(theme.border)),
         );
 
-        let mut state = self.list_state.clone();
+        let mut state = self.list_state;
         frame.render_stateful_widget(list, area, &mut state);
     }
 

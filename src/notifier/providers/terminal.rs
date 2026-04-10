@@ -11,6 +11,12 @@ impl TerminalNotifier {
     }
 }
 
+impl Default for TerminalNotifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl Notifier for TerminalNotifier {
     fn name(&self) -> &str {

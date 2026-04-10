@@ -12,6 +12,12 @@ pub struct AlertsTab {
     pub list_state: ListState,
 }
 
+impl Default for AlertsTab {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AlertsTab {
     pub fn new() -> Self {
         let mut list_state = ListState::default();
@@ -111,7 +117,7 @@ impl AlertsTab {
                 .border_style(Style::default().fg(theme.border)),
         );
 
-        let mut state = self.list_state.clone();
+        let mut state = self.list_state;
         frame.render_stateful_widget(list, area, &mut state);
     }
 
@@ -173,17 +179,17 @@ impl AlertsTab {
         let notifiers_joined = notifiers_strs.join(", ");
         let max_str = alert.max_results.map(|m| m.to_string());
 
-        let mut lines = vec![];
-        lines.push(Line::from(Span::styled(
-            &alert.name,
-            Style::default()
-                .fg(theme.fg)
-                .add_modifier(Modifier::BOLD),
-        )));
-        lines.push(Line::from(""));
-
-        lines.push(detail_line("Marketplaces", &marketplaces_joined, theme));
-        lines.push(detail_line("Keywords", &keywords_joined, theme));
+        let mut lines = vec![
+            Line::from(Span::styled(
+                &alert.name,
+                Style::default()
+                    .fg(theme.fg)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            detail_line("Marketplaces", &marketplaces_joined, theme),
+            detail_line("Keywords", &keywords_joined, theme),
+        ];
 
         if !alert.exclude_keywords.is_empty() {
             lines.push(detail_line("Exclude", &exclude_joined, theme));

@@ -11,7 +11,9 @@ use ratatui::Frame;
 pub struct AlertsTab {
     pub selected: usize,
     pub list_state: ListState,
-    pub listing_scroll: usize,
+    pub listing_selected: usize,
+    pub listing_state: ListState,
+    pub listing_focus: bool,
 }
 
 impl Default for AlertsTab {
@@ -24,29 +26,58 @@ impl AlertsTab {
     pub fn new() -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
+        let mut listing_state = ListState::default();
+        listing_state.select(Some(0));
         Self {
             selected: 0,
             list_state,
-            listing_scroll: 0,
+            listing_selected: 0,
+            listing_state,
+            listing_focus: false,
         }
     }
 
     pub fn handle_key(&mut self, key: KeyEvent, config: &mut AppConfig) -> Option<AlertsAction> {
         let alert_count = config.alerts.len();
 
+        if self.listing_focus {
+            match key.code {
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if self.listing_selected > 0 {
+                        self.listing_selected -= 1;
+                        self.listing_state.select(Some(self.listing_selected));
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.listing_selected = self.listing_selected.saturating_add(1);
+                    self.listing_state.select(Some(self.listing_selected));
+                }
+                KeyCode::Enter => {
+                    return Some(AlertsAction::ViewListing(self.selected, self.listing_selected));
+                }
+                KeyCode::Esc => {
+                    self.listing_focus = false;
+                }
+                _ => {}
+            }
+            return None;
+        }
+
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
                 if alert_count > 0 && self.selected > 0 {
                     self.selected -= 1;
                     self.list_state.select(Some(self.selected));
-                    self.listing_scroll = 0;
+                    self.listing_selected = 0;
+                    self.listing_focus = false;
                 }
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 if alert_count > 0 && self.selected < alert_count - 1 {
                     self.selected += 1;
                     self.list_state.select(Some(self.selected));
-                    self.listing_scroll = 0;
+                    self.listing_selected = 0;
+                    self.listing_focus = false;
                 }
             }
             KeyCode::Char(' ') => {
@@ -71,6 +102,12 @@ impl AlertsTab {
             KeyCode::Char('f') => {
                 if self.selected < alert_count {
                     return Some(AlertsAction::ForceCheck(self.selected));
+                }
+            }
+            KeyCode::Enter | KeyCode::Char('l') => {
+                if self.selected < alert_count {
+                    self.listing_focus = true;
+                    self.listing_selected = 0;
                 }
             }
             _ => {}
@@ -191,18 +228,29 @@ impl AlertsTab {
         let notifiers_joined = notifiers_strs.join(", ");
         let max_str = alert.max_results.map(|m| m.to_string());
 
-        let status = if alert.enabled { "Enabled" } else { "Disabled" };
+        let status_text = if alert.enabled { "Enabled" } else { "Disabled" };
         let status_color = if alert.enabled { theme.enabled } else { theme.disabled };
 
-        // Split inner into: name (2 lines), table (flexible), status section (1-3 lines), listings (remaining).
+        // Count rows for the detail table to calculate exact height.
+        let mut row_count: u16 = 2; // Marketplaces + Keywords always present
+        if !alert.exclude_keywords.is_empty() { row_count += 1; }
+        if price_str.is_some() { row_count += 1; }
+        if loc_str.is_some() { row_count += 1; }
+        if cond_str.is_some() { row_count += 1; }
+        if alert.category.is_some() { row_count += 1; }
+        row_count += 2; // Interval + Notify always present
+        if max_str.is_some() { row_count += 1; }
+        row_count += 1; // Status always present
         let check_status = statuses.iter().find(|s| s.alert_id == alert.id);
-        let status_height = if check_status.is_some() { 3 } else { 1 };
+        if check_status.is_some() { row_count += 1; } // Last check
+
+        // Layout: name (2), detail table (exact), divider (1), listings (remaining).
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2),
-                Constraint::Min(1),
-                Constraint::Length(status_height),
+                Constraint::Length(row_count),
+                Constraint::Length(1),
                 Constraint::Min(0),
             ])
             .split(inner);
@@ -282,16 +330,12 @@ impl AlertsTab {
 
         rows.push(Row::new(vec![
             Cell::from("Status").style(dim),
-            Cell::from(status).style(Style::default().fg(status_color)),
+            Cell::from(status_text).style(Style::default().fg(status_color)),
         ]));
 
-        let widths = [Constraint::Length(16), Constraint::Min(10)];
-        let table = Table::new(rows, widths);
-        frame.render_widget(table, chunks[1]);
-
-        // Check status section.
-        if let Some(check_status) = check_status {
-            let ago = Utc::now().signed_duration_since(check_status.checked_at);
+        // Last check row — merged into the detail table.
+        if let Some(cs) = check_status {
+            let ago = Utc::now().signed_duration_since(cs.checked_at);
             let ago_str = if ago.num_hours() > 0 {
                 format!("{}h ago", ago.num_hours())
             } else if ago.num_minutes() > 0 {
@@ -300,7 +344,7 @@ impl AlertsTab {
                 format!("{}s ago", ago.num_seconds())
             };
 
-            let last_check_line = if let Some(ref err) = check_status.error {
+            let last_check_line = if let Some(ref err) = cs.error {
                 Line::from(vec![
                     Span::styled(ago_str, Style::default().fg(theme.fg)),
                     Span::styled(format!(" — error: {}", err), Style::default().fg(theme.disabled)),
@@ -309,21 +353,27 @@ impl AlertsTab {
                 Line::from(vec![
                     Span::styled(ago_str, Style::default().fg(theme.fg)),
                     Span::styled(
-                        format!(" — {} new results", check_status.new_results),
+                        format!(" — {} new results", cs.new_results),
                         Style::default().fg(theme.accent),
                     ),
                 ])
             };
 
-            let status_rows = vec![
-                Row::new(vec![
-                    Cell::from("Last check").style(dim),
-                    Cell::from(last_check_line),
-                ]),
-            ];
-            let status_table = Table::new(status_rows, widths);
-            frame.render_widget(status_table, chunks[2]);
+            rows.push(Row::new(vec![
+                Cell::from("Last check").style(dim),
+                Cell::from(last_check_line),
+            ]));
         }
+
+        let widths = [Constraint::Length(16), Constraint::Min(10)];
+        let table = Table::new(rows, widths);
+        frame.render_widget(table, chunks[1]);
+
+        // Divider between detail table and listings.
+        let divider = Block::default()
+            .borders(Borders::TOP)
+            .border_style(Style::default().fg(theme.border));
+        frame.render_widget(divider, chunks[2]);
 
         // Listings section.
         let alert_listings: Vec<&crate::types::Listing> = results
@@ -334,9 +384,14 @@ impl AlertsTab {
 
         let listings_area = chunks[3];
         if listings_area.height > 1 {
+            let header_style = if self.listing_focus {
+                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.fg_dim).add_modifier(Modifier::BOLD)
+            };
             let header = Paragraph::new(Span::styled(
-                format!("Listings ({})", alert_listings.len()),
-                Style::default().fg(theme.fg_dim).add_modifier(Modifier::BOLD),
+                format!("Listings ({})  [Enter/l] browse  [Esc] back", alert_listings.len()),
+                header_style,
             ));
             frame.render_widget(header, Rect { height: 1, ..listings_area });
 
@@ -346,25 +401,35 @@ impl AlertsTab {
                     height: listings_area.height - 1,
                     ..listings_area
                 };
+
                 let items: Vec<ListItem> = alert_listings
                     .iter()
-                    .skip(self.listing_scroll)
-                    .map(|listing| {
+                    .enumerate()
+                    .map(|(i, listing)| {
                         let price_str = listing.price
-                            .map(|p| format!("${:.0}", p))
-                            .unwrap_or_else(|| "Free".into());
+                            .map(|p| format!("${:.0} ", p))
+                            .unwrap_or_default();
                         let is_seen = seen_ids.contains(&listing.id);
                         let indicator = if is_seen { "  " } else { "● " };
                         let indicator_color = if is_seen { theme.fg_dim } else { theme.unread };
+                        let is_listing_selected = self.listing_focus && i == self.listing_selected;
+                        let title_style = if is_listing_selected {
+                            Style::default().bg(theme.selected_bg).fg(theme.fg)
+                        } else {
+                            Style::default().fg(theme.fg)
+                        };
                         ListItem::new(Line::from(vec![
                             Span::styled(indicator, Style::default().fg(indicator_color)),
-                            Span::styled(listing.title.as_str(), Style::default().fg(theme.fg)),
-                            Span::styled(format!("  {}", price_str), Style::default().fg(theme.accent)),
+                            Span::styled(price_str, Style::default().fg(theme.accent)),
+                            Span::styled(listing.title.as_str(), title_style),
                         ]))
                     })
                     .collect();
-                let list = List::new(items);
-                frame.render_widget(list, list_area);
+
+                let list = List::new(items)
+                    .highlight_style(Style::default().bg(theme.selected_bg));
+                let mut listing_state = self.listing_state;
+                frame.render_stateful_widget(list, list_area, &mut listing_state);
             }
         }
     }
@@ -376,4 +441,5 @@ pub enum AlertsAction {
     EditAlert(usize),
     DeleteAlert(usize),
     ForceCheck(usize),
+    ViewListing(usize, usize),
 }

@@ -207,6 +207,7 @@ struct ListingNode {
 struct ListingPrice {
     amount: Option<String>,
     currency: Option<String>,
+    formatted_amount: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -334,8 +335,17 @@ impl Marketplace for FacebookMarketplace {
             let price = node
                 .listing_price
                 .as_ref()
-                .and_then(|p| p.amount.as_ref())
-                .and_then(|a| a.parse::<f64>().ok());
+                .and_then(|p| {
+                    p.amount
+                        .as_ref()
+                        .and_then(|a| a.parse::<f64>().ok())
+                        .or_else(|| {
+                            p.formatted_amount.as_ref().and_then(|f| {
+                                let cleaned = f.replace(['$', ',', ' '], "");
+                                cleaned.parse::<f64>().ok()
+                            })
+                        })
+                });
 
             let currency = node
                 .listing_price

@@ -85,6 +85,13 @@ impl ResultsTab {
                     return Some(ResultsAction::SeenChanged);
                 }
             }
+            KeyCode::Enter => {
+                if let Some(entry) = flat.get(self.selected) {
+                    let listing = results[entry.result_idx].listings[entry.listing_idx].clone();
+                    let alert_name = entry.alert_name.clone();
+                    return Some(ResultsAction::ViewListing(listing, alert_name));
+                }
+            }
             KeyCode::Char('c') => {
                 results.clear();
                 self.selected = 0;
@@ -134,6 +141,10 @@ impl ResultsTab {
                 let indicator = if is_seen { "  " } else { "● " };
                 let indicator_color = if is_seen { theme.fg_dim } else { theme.unread };
 
+                let price_str = listing.price
+                    .map(|p| format!("${:.0} ", p))
+                    .unwrap_or_default();
+
                 let title = if listing.title.len() > 25 {
                     format!("{}…", &listing.title[..24])
                 } else {
@@ -148,6 +159,7 @@ impl ResultsTab {
 
                 ListItem::new(Line::from(vec![
                     Span::styled(indicator, Style::default().fg(indicator_color)),
+                    Span::styled(price_str, Style::default().fg(theme.accent)),
                     Span::styled(title, style),
                 ]))
             })
@@ -281,8 +293,8 @@ impl ResultsTab {
 
         // Keyboard hint.
         let hint = Paragraph::new(Span::styled(
-            "[o] open in browser",
-            Style::default().fg(theme.accent),
+            "[Enter] details  [o] open in browser",
+            Style::default().fg(theme.fg_dim),
         ));
         frame.render_widget(hint, chunks[2]);
     }
@@ -292,4 +304,5 @@ pub enum ResultsAction {
     OpenUrl(String),
     ResultsChanged,
     SeenChanged,
+    ViewListing(crate::types::Listing, String),
 }

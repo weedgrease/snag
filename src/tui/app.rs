@@ -49,6 +49,7 @@ pub struct App {
 pub enum ActiveDialog {
     AlertForm(AlertFormDialog),
     Confirm(ConfirmDialog, ConfirmAction),
+    ListingDetail(crate::tui::dialogs::listing_detail::ListingDetailDialog),
 }
 
 pub enum ConfirmAction {
@@ -199,6 +200,22 @@ impl App {
                                                 self.active_dialog = Some(ActiveDialog::Confirm(dialog, ConfirmAction::DeleteAlert(idx)));
                                             }
                                         }
+                                        crate::tui::tabs::alerts::AlertsAction::ViewListing(alert_idx, listing_idx) => {
+                                            if let Some(alert) = self.config.alerts.get(alert_idx) {
+                                                let alert_listings: Vec<&crate::types::Listing> = self.results
+                                                    .iter()
+                                                    .filter(|r| r.alert_id == alert.id)
+                                                    .flat_map(|r| r.listings.iter())
+                                                    .collect();
+                                                if let Some(listing) = alert_listings.get(listing_idx) {
+                                                    let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
+                                                        (*listing).clone(),
+                                                        alert.name.clone(),
+                                                    );
+                                                    self.active_dialog = Some(ActiveDialog::ListingDetail(dialog));
+                                                }
+                                            }
+                                        }
                                         crate::tui::tabs::alerts::AlertsAction::ForceCheck(idx) => {
                                             if let Some(alert) = self.config.alerts.get(idx).cloned() {
                                                 let existing_ids: std::collections::HashSet<String> = self.results
@@ -257,6 +274,13 @@ impl App {
                                         }
                                         crate::tui::tabs::results::ResultsAction::SeenChanged => {
                                             let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
+                                        }
+                                        crate::tui::tabs::results::ResultsAction::ViewListing(listing, alert_name) => {
+                                            let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
+                                                listing,
+                                                alert_name,
+                                            );
+                                            self.active_dialog = Some(ActiveDialog::ListingDetail(dialog));
                                         }
                                     }
                                 }
@@ -396,6 +420,21 @@ impl App {
                     DialogResult::Submit(_) => Some(DialogResult::<()>::Submit(())),
                 }
             }
+            Some(ActiveDialog::ListingDetail(dialog)) => {
+                let r = dialog.handle_key(key);
+                match r {
+                    DialogResult::Cancel => Some(DialogResult::<()>::Cancel),
+                    DialogResult::Continue => None,
+                    DialogResult::Submit(action) => {
+                        match action {
+                            crate::tui::dialogs::listing_detail::ListingDetailAction::OpenUrl(url) => {
+                                let _ = open::that(&url);
+                            }
+                        }
+                        Some(DialogResult::<()>::Cancel)
+                    }
+                }
+            }
             None => None,
         };
 
@@ -463,6 +502,7 @@ impl App {
             match dialog {
                 ActiveDialog::AlertForm(d) => d.render(frame, frame.area(), &self.theme),
                 ActiveDialog::Confirm(d, _) => d.render(frame, frame.area(), &self.theme),
+                ActiveDialog::ListingDetail(d) => d.render(frame, frame.area(), &self.theme),
             }
         }
     }
@@ -511,7 +551,7 @@ impl App {
 
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
         let hints = match self.active_tab {
-            TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce check [space]toggle [q]uit",
+            TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce [l]istings [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
             TabKind::Settings => "[Enter] edit/toggle [↑↓] navigate [q]uit",
             TabKind::Logs => "[↑↓] scroll [Space] toggle [+/-] level [h]ide [f]ocus [q]uit",

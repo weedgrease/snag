@@ -137,11 +137,10 @@ impl SettingsTab {
     fn apply_edit(&self, config: &mut AppConfig) {
         match self.selected {
             FIELD_CHECK_INTERVAL => {
-                if let Ok(secs) = self.edit_buffer.trim().parse::<u64>() {
-                    if secs > 0 {
+                if let Ok(secs) = self.edit_buffer.trim().parse::<u64>()
+                    && secs > 0 {
                         config.settings.default_check_interval = Duration::from_secs(secs);
                     }
-                }
             }
             FIELD_MAX_RESULTS => {
                 let trimmed = self.edit_buffer.trim();

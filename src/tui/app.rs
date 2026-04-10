@@ -169,19 +169,17 @@ impl App {
                                         }
                                         crate::tui::tabs::settings::SettingsAction::StopDaemon => {
                                             let pid_path = config::data_dir().join("daemon.pid");
-                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
-                                                if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path)
+                                                && let Ok(pid) = pid_str.trim().parse::<u32>() {
                                                     unsafe { libc::kill(pid as i32, libc::SIGTERM); }
                                                 }
-                                            }
                                         }
                                         crate::tui::tabs::settings::SettingsAction::RestartDaemon => {
                                             let pid_path = config::data_dir().join("daemon.pid");
-                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path) {
-                                                if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path)
+                                                && let Ok(pid) = pid_str.trim().parse::<u32>() {
                                                     unsafe { libc::kill(pid as i32, libc::SIGTERM); }
                                                 }
-                                            }
                                             if let Ok(exe) = std::env::current_exe() {
                                                 std::process::Command::new(exe)
                                                     .arg("daemon")
@@ -217,8 +215,8 @@ impl App {
                 last_results_refresh = Instant::now();
             }
 
-            if let Some(ref mut rx) = self.update_rx {
-                if let Ok(result) = rx.try_recv() {
+            if let Some(ref mut rx) = self.update_rx
+                && let Ok(result) = rx.try_recv() {
                     if let Some(info) = result {
                         self.settings_tab.update_banner =
                             Some(format!("Update available: {} — run `snag update`", info.latest_version));
@@ -226,7 +224,6 @@ impl App {
                     }
                     self.update_rx = None;
                 }
-            }
 
             if self.should_quit {
                 break;

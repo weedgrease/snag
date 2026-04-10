@@ -1,9 +1,13 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::Span;
+use ratatui::widgets::{Block, Borders};
 use ratatui::Frame;
 
 pub struct LogsTab {
     state: tui_logger::TuiWidgetState,
+    selector_focused: bool,
 }
 
 impl Default for LogsTab {
@@ -14,38 +18,112 @@ impl Default for LogsTab {
 
 impl LogsTab {
     pub fn new() -> Self {
-        let mut state = tui_logger::TuiWidgetState::new()
-            .set_default_display_level(log::LevelFilter::Info);
-        state.transition(tui_logger::TuiWidgetEvent::HideKey);
-        Self { state }
+        Self {
+            state: tui_logger::TuiWidgetState::new()
+                .set_default_display_level(log::LevelFilter::Info),
+            selector_focused: false,
+        }
     }
 
     pub fn handle_key(&mut self, key: KeyEvent) {
-        match key.code {
-            KeyCode::Char(' ') => self.state.transition(tui_logger::TuiWidgetEvent::SpaceKey),
-            KeyCode::Esc => self.state.transition(tui_logger::TuiWidgetEvent::EscapeKey),
-            KeyCode::PageUp => self.state.transition(tui_logger::TuiWidgetEvent::PrevPageKey),
-            KeyCode::PageDown => self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey),
-            KeyCode::Up => self.state.transition(tui_logger::TuiWidgetEvent::UpKey),
-            KeyCode::Down => self.state.transition(tui_logger::TuiWidgetEvent::DownKey),
-            KeyCode::Left => self.state.transition(tui_logger::TuiWidgetEvent::LeftKey),
-            KeyCode::Right => self.state.transition(tui_logger::TuiWidgetEvent::RightKey),
-            KeyCode::Char('h') => self.state.transition(tui_logger::TuiWidgetEvent::HideKey),
-            KeyCode::Char('f') => self.state.transition(tui_logger::TuiWidgetEvent::FocusKey),
-            _ => {}
+        if self.selector_focused {
+            match key.code {
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::UpKey);
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::DownKey);
+                }
+                KeyCode::Left => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::LeftKey);
+                }
+                KeyCode::Right => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::RightKey);
+                }
+                KeyCode::Char('f') => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
+                }
+                KeyCode::Esc | KeyCode::Enter => {
+                    self.selector_focused = false;
+                }
+                _ => {}
+            }
+        } else {
+            match key.code {
+                KeyCode::Up | KeyCode::Char('k') | KeyCode::PageUp => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::PrevPageKey);
+                }
+                KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey);
+                }
+                KeyCode::Esc => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::EscapeKey);
+                }
+                KeyCode::Enter => {
+                    self.selector_focused = true;
+                }
+                KeyCode::Char('f') => {
+                    self.state.transition(tui_logger::TuiWidgetEvent::FocusKey);
+                }
+                _ => {}
+            }
         }
     }
 
     pub fn render(&self, frame: &mut Frame, area: Rect) {
-        let widget = tui_logger::TuiLoggerSmartWidget::default()
-            .style_error(ratatui::style::Style::default().fg(ratatui::style::Color::Red))
-            .style_warn(ratatui::style::Style::default().fg(ratatui::style::Color::Yellow))
-            .style_info(ratatui::style::Style::default().fg(ratatui::style::Color::White))
-            .style_debug(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray))
-            .style_trace(ratatui::style::Style::default().fg(ratatui::style::Color::DarkGray))
-            .output_timestamp(Some("%H:%M:%S".to_string()))
-            .title_target("Target Selector")
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(30), Constraint::Min(40)])
+            .split(area);
+
+        let selector_border_color = if self.selector_focused {
+            Color::Cyan
+        } else {
+            Color::DarkGray
+        };
+        let selector_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(selector_border_color))
+            .title(Span::styled(
+                " Targets ",
+                Style::default()
+                    .fg(selector_border_color)
+                    .add_modifier(Modifier::BOLD),
+            ));
+
+        let selector = tui_logger::TuiLoggerTargetWidget::default()
+            .style_show(Style::default().fg(Color::White))
+            .style_hide(Style::default().fg(Color::DarkGray))
+            .style_off(Style::default().fg(Color::DarkGray))
+            .highlight_style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            .block(selector_block)
             .state(&self.state);
-        frame.render_widget(widget, area);
+        frame.render_widget(selector, chunks[0]);
+
+        let log_border_color = if self.selector_focused {
+            Color::DarkGray
+        } else {
+            Color::Cyan
+        };
+        let log_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(log_border_color))
+            .title(Span::styled(
+                " Logs ",
+                Style::default()
+                    .fg(log_border_color)
+                    .add_modifier(Modifier::BOLD),
+            ));
+
+        let logs = tui_logger::TuiLoggerWidget::default()
+            .style_error(Style::default().fg(Color::Red))
+            .style_warn(Style::default().fg(Color::Yellow))
+            .style_info(Style::default().fg(Color::White))
+            .style_debug(Style::default().fg(Color::DarkGray))
+            .style_trace(Style::default().fg(Color::DarkGray))
+            .output_timestamp(Some("%H:%M:%S".to_string()))
+            .block(log_block)
+            .state(&self.state);
+        frame.render_widget(logs, chunks[1]);
     }
 }

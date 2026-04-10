@@ -153,11 +153,7 @@ impl AlertsTab {
 
                 let prefix_len = 3;
                 let max_name = inner_width.saturating_sub(prefix_len);
-                let name = if alert.name.len() > max_name && max_name > 1 {
-                    format!("{}…", &alert.name[..max_name.saturating_sub(1)])
-                } else {
-                    alert.name.clone()
-                };
+                let name = truncate_str(&alert.name, max_name);
 
                 let style = if i == self.selected {
                     Style::default().bg(theme.selected_bg).fg(theme.fg)
@@ -446,11 +442,7 @@ impl AlertsTab {
                         let indicator_color = if is_seen { theme.fg_dim } else { theme.unread };
                         let prefix_len = indicator.len() + price_str.len();
                         let max_title = list_inner_width.saturating_sub(prefix_len);
-                        let title = if listing.title.len() > max_title && max_title > 1 {
-                            format!("{}…", &listing.title[..max_title.saturating_sub(1)])
-                        } else {
-                            listing.title.clone()
-                        };
+                        let title = truncate_str(&listing.title, max_title);
                         let is_listing_selected = self.listing_focus && i == self.listing_selected;
                         let title_style = if is_listing_selected {
                             Style::default().bg(theme.selected_bg).fg(theme.fg)
@@ -479,6 +471,20 @@ impl AlertsTab {
             }
         }
     }
+}
+
+fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len || max_len <= 1 {
+        return s.to_string();
+    }
+    let target = max_len.saturating_sub(1);
+    let boundary = s
+        .char_indices()
+        .take_while(|(i, _)| *i < target)
+        .last()
+        .map(|(i, c)| i + c.len_utf8())
+        .unwrap_or(0);
+    format!("{}…", &s[..boundary])
 }
 
 pub enum AlertsAction {

@@ -160,11 +160,7 @@ impl ResultsTab {
 
                 let prefix_len = indicator.len() + price_str.len();
                 let max_title = inner_width.saturating_sub(prefix_len);
-                let title = if listing.title.len() > max_title && max_title > 1 {
-                    format!("{}…", &listing.title[..max_title.saturating_sub(1)])
-                } else {
-                    listing.title.clone()
-                };
+                let title = truncate_str(&listing.title, max_title);
 
                 let style = if i == self.selected {
                     Style::default().bg(theme.selected_bg).fg(theme.fg)
@@ -338,6 +334,20 @@ impl ResultsTab {
         ));
         frame.render_widget(hint, chunks[3]);
     }
+}
+
+fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len || max_len <= 1 {
+        return s.to_string();
+    }
+    let target = max_len.saturating_sub(1);
+    let boundary = s
+        .char_indices()
+        .take_while(|(i, _)| *i < target)
+        .last()
+        .map(|(i, c)| i + c.len_utf8())
+        .unwrap_or(0);
+    format!("{}…", &s[..boundary])
 }
 
 pub enum ResultsAction {

@@ -1,6 +1,4 @@
-use crate::config::{self, AppConfig, load_config, save_config};
-#[allow(unused_imports)]
-use libc;
+use crate::config::{AppConfig, load_config, save_config};
 use crate::daemon::results::{load_results, results_path};
 use crate::tui::dialogs::alert_form::AlertFormDialog;
 use crate::tui::dialogs::confirm::ConfirmDialog;
@@ -36,6 +34,11 @@ pub struct App {
     pub active_dialog: Option<ActiveDialog>,
     pub update_info: Option<crate::update::UpdateInfo>,
     update_rx: Option<tokio::sync::oneshot::Receiver<Option<crate::update::UpdateInfo>>>,
+    scheduler_rx: Option<tokio::sync::mpsc::Receiver<crate::scheduler::SchedulerEvent>>,
+    config_tx: Option<tokio::sync::watch::Sender<AppConfig>>,
+    _scheduler_lock: Option<std::fs::File>,
+    last_results_mtime: Option<std::time::SystemTime>,
+    last_status_mtime: Option<std::time::SystemTime>,
 }
 
 pub enum ActiveDialog {
@@ -50,12 +53,30 @@ pub enum ConfirmAction {
 
 impl App {
     pub fn new() -> Result<Self> {
-        let config_path = config::config_path();
+        let config_path = crate::config::config_path();
         let results_path = results_path();
         let config = load_config(&config_path).unwrap_or_default();
         let results = load_results(&results_path).unwrap_or_default();
         let status_path = crate::daemon::results::status_path();
         let statuses = crate::daemon::results::load_status(&status_path).unwrap_or_default();
+
+        let existing_ids: std::collections::HashSet<String> = results
+            .iter()
+            .flat_map(|r| r.listings.iter().map(|l| l.id.clone()))
+            .collect();
+
+        let (scheduler_rx, config_tx, scheduler_lock) =
+            if let Some(lock) = crate::scheduler::try_acquire_scheduler_lock() {
+                let (event_tx, event_rx) =
+                    tokio::sync::mpsc::channel::<crate::scheduler::SchedulerEvent>(64);
+                let (cfg_tx, cfg_rx) = tokio::sync::watch::channel(config.clone());
+                let scheduler =
+                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids);
+                tokio::spawn(scheduler.run());
+                (Some(event_rx), Some(cfg_tx), Some(lock))
+            } else {
+                (None, None, None)
+            };
 
         let update_rx = if config.settings.check_for_updates {
             let (tx, rx) = tokio::sync::oneshot::channel();
@@ -84,6 +105,11 @@ impl App {
             active_dialog: None,
             update_info: None,
             update_rx,
+            scheduler_rx,
+            config_tx,
+            _scheduler_lock: scheduler_lock,
+            last_results_mtime: None,
+            last_status_mtime: None,
         })
     }
 
@@ -129,6 +155,9 @@ impl App {
                                     match action {
                                         crate::tui::tabs::alerts::AlertsAction::ConfigChanged => {
                                             let _ = save_config(&self.config, &self.config_path);
+                                            if let Some(ref tx) = self.config_tx {
+                                                let _ = tx.send(self.config.clone());
+                                            }
                                         }
                                         crate::tui::tabs::alerts::AlertsAction::CreateAlert => {
                                             let mut dialog = AlertFormDialog::new();
@@ -175,41 +204,11 @@ impl App {
                                     match action {
                                         crate::tui::tabs::settings::SettingsAction::ConfigChanged => {
                                             let _ = save_config(&self.config, &self.config_path);
-                                        }
-                                        crate::tui::tabs::settings::SettingsAction::StopDaemon => {
-                                            let pid_path = config::data_dir().join("daemon.pid");
-                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path)
-                                                && let Ok(pid) = pid_str.trim().parse::<u32>() {
-                                                    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
-                                                }
-                                        }
-                                        crate::tui::tabs::settings::SettingsAction::RestartDaemon => {
-                                            let pid_path = config::data_dir().join("daemon.pid");
-                                            if let Ok(pid_str) = std::fs::read_to_string(&pid_path)
-                                                && let Ok(pid) = pid_str.trim().parse::<u32>() {
-                                                    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
-                                                }
-                                            if let Ok(exe) = std::env::current_exe() {
-                                                std::process::Command::new(exe)
-                                                    .arg("daemon")
-                                                    .stdin(std::process::Stdio::null())
-                                                    .stdout(std::process::Stdio::null())
-                                                    .stderr(std::process::Stdio::null())
-                                                    .spawn()
-                                                    .ok();
+                                            if let Some(ref tx) = self.config_tx {
+                                                let _ = tx.send(self.config.clone());
                                             }
                                         }
-                                        crate::tui::tabs::settings::SettingsAction::StartDaemon => {
-                                            if let Ok(exe) = std::env::current_exe() {
-                                                std::process::Command::new(exe)
-                                                    .arg("daemon")
-                                                    .stdin(std::process::Stdio::null())
-                                                    .stdout(std::process::Stdio::null())
-                                                    .stderr(std::process::Stdio::null())
-                                                    .spawn()
-                                                    .ok();
-                                            }
-                                        }
+                                        _ => {}
                                     }
                                 }
                             }
@@ -217,13 +216,63 @@ impl App {
                     }
             }
 
-            if last_results_refresh.elapsed() >= results_refresh_interval {
-                if let Ok(new_results) = load_results(&self.results_path) {
-                    self.results = new_results;
+            if let Some(ref mut rx) = self.scheduler_rx {
+                while let Ok(event) = rx.try_recv() {
+                    match event {
+                        crate::scheduler::SchedulerEvent::CheckComplete { status, result } => {
+                            upsert_status(&mut self.statuses, status);
+                            if let Some(alert_result) = result {
+                                self.results.push(alert_result);
+                            }
+                            let _ = crate::daemon::results::save_results(
+                                &self.results,
+                                &self.results_path,
+                            );
+                            let _ = crate::daemon::results::save_status(
+                                &self.statuses,
+                                &self.status_path,
+                            );
+                        }
+                        crate::scheduler::SchedulerEvent::CheckError { alert_id, error } => {
+                            upsert_status(
+                                &mut self.statuses,
+                                crate::types::CheckStatus {
+                                    alert_id,
+                                    checked_at: chrono::Utc::now(),
+                                    new_results: 0,
+                                    error: Some(error),
+                                },
+                            );
+                            let _ = crate::daemon::results::save_status(
+                                &self.statuses,
+                                &self.status_path,
+                            );
+                        }
+                    }
                 }
-                if let Ok(new_statuses) = crate::daemon::results::load_status(&self.status_path) {
-                    self.statuses = new_statuses;
+            } else if last_results_refresh.elapsed() >= results_refresh_interval {
+                let results_mtime = std::fs::metadata(&self.results_path)
+                    .and_then(|m| m.modified())
+                    .ok();
+                if results_mtime != self.last_results_mtime {
+                    if let Ok(new_results) = load_results(&self.results_path) {
+                        self.results = new_results;
+                    }
+                    self.last_results_mtime = results_mtime;
                 }
+
+                let status_mtime = std::fs::metadata(&self.status_path)
+                    .and_then(|m| m.modified())
+                    .ok();
+                if status_mtime != self.last_status_mtime {
+                    if let Ok(new_statuses) =
+                        crate::daemon::results::load_status(&self.status_path)
+                    {
+                        self.statuses = new_statuses;
+                    }
+                    self.last_status_mtime = status_mtime;
+                }
+
                 last_results_refresh = Instant::now();
             }
 
@@ -262,6 +311,9 @@ impl App {
                             }
                         }
                         let _ = save_config(&self.config, &self.config_path);
+                        if let Some(ref tx) = self.config_tx {
+                            let _ = tx.send(self.config.clone());
+                        }
                         Some(DialogResult::<()>::Cancel)
                     }
                 }
@@ -287,6 +339,9 @@ impl App {
                             if idx < self.config.alerts.len() {
                                 self.config.alerts.remove(idx);
                                 let _ = save_config(&self.config, &self.config_path);
+                                if let Some(ref tx) = self.config_tx {
+                                    let _ = tx.send(self.config.clone());
+                                }
                                 if self.alerts_tab.selected >= self.config.alerts.len()
                                     && self.alerts_tab.selected > 0
                                 {
@@ -406,5 +461,13 @@ impl App {
         ]));
 
         frame.render_widget(bar, area);
+    }
+}
+
+fn upsert_status(statuses: &mut Vec<crate::types::CheckStatus>, status: crate::types::CheckStatus) {
+    if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == status.alert_id) {
+        *existing = status;
+    } else {
+        statuses.push(status);
     }
 }

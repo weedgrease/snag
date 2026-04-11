@@ -32,7 +32,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             settings: GlobalSettings {
-                default_check_interval: Duration::from_secs(300),
+                default_check_interval: Duration::from_secs(3600),
                 default_max_results: Some(20),
                 default_notifier: NotifierKind::Terminal,
                 check_for_updates: true,

@@ -6,10 +6,27 @@ use chrono::Utc;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 const GRAPHQL_URL: &str = "https://www.facebook.com/api/graphql/";
 const LOCATION_DOC_ID: &str = "5585904654783609";
 const SEARCH_DOC_ID: &str = "7111939778879383";
+const INITIAL_BACKOFF: Duration = Duration::from_secs(30);
+const MAX_BACKOFF: Duration = Duration::from_secs(300);
+
+use std::sync::LazyLock;
+
+struct RateLimitState {
+    backoff: Duration,
+    blocked_until: Option<Instant>,
+}
+
+static RATE_LIMIT: LazyLock<Mutex<RateLimitState>> = LazyLock::new(|| {
+    Mutex::new(RateLimitState {
+        backoff: INITIAL_BACKOFF,
+        blocked_until: None,
+    })
+});
 
 pub struct FacebookMarketplace {
     client: reqwest::Client,
@@ -259,6 +276,17 @@ impl Marketplace for FacebookMarketplace {
         alert: &Alert,
         default_location: Option<&str>,
     ) -> Result<Vec<Listing>> {
+        {
+            let state = RATE_LIMIT.lock().unwrap();
+            if let Some(blocked_until) = state.blocked_until
+                && Instant::now() < blocked_until
+            {
+                let remaining = blocked_until.duration_since(Instant::now());
+                log::warn!(target: "snag::facebook", "Rate limited, waiting {}s before next request", remaining.as_secs());
+                anyhow::bail!("Rate limited, retry in {}s", remaining.as_secs());
+            }
+        }
+
         let location_query = alert
             .location
             .as_deref()
@@ -298,8 +326,25 @@ impl Marketplace for FacebookMarketplace {
         {
             let msg = first.get("message").and_then(|m| m.as_str()).unwrap_or("unknown");
             let code = first.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
-            log::error!(target: "snag::facebook", "Facebook API error (code {}): {}", code, msg);
+
+            if code == 1675004 {
+                let mut state = RATE_LIMIT.lock().unwrap();
+                let backoff = state.backoff;
+                state.blocked_until = Some(Instant::now() + backoff);
+                state.backoff = (backoff * 2).min(MAX_BACKOFF);
+                log::error!(target: "snag::facebook", "Rate limited — backing off for {}s", backoff.as_secs());
+            } else {
+                log::error!(target: "snag::facebook", "Facebook API error (code {}): {}", code, msg);
+            }
+
             anyhow::bail!("Facebook API error (code {}): {}", code, msg);
+        }
+
+        // Successful request — reset backoff
+        {
+            let mut state = RATE_LIMIT.lock().unwrap();
+            state.backoff = INITIAL_BACKOFF;
+            state.blocked_until = None;
         }
 
         let body: SearchResponse = serde_json::from_str(&body_text)

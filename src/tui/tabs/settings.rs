@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 use std::time::Duration;
 
@@ -194,7 +194,8 @@ impl SettingsTab {
                     .add_modifier(Modifier::BOLD),
             ))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.border));
+            .border_style(Style::default().fg(theme.border))
+            .border_type(BorderType::Rounded);
 
         let inner = block.inner(area);
         frame.render_widget(block, area);

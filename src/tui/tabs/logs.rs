@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
-use ratatui::widgets::{Block, Borders};
+use ratatui::widgets::{Block, BorderType, Borders};
 use ratatui::Frame;
 
 pub struct LogsTab {
@@ -85,6 +85,7 @@ impl LogsTab {
         let selector_block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(selector_border_color))
+            .border_type(BorderType::Rounded)
             .title(Span::styled(
                 " Targets ",
                 Style::default()
@@ -117,6 +118,7 @@ impl LogsTab {
         let log_block = Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(log_border_color))
+            .border_type(BorderType::Rounded)
             .title(Span::styled(
                 " Logs ",
                 Style::default()

@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 
 pub struct EbaySetupDialog {
@@ -126,7 +126,8 @@ impl EbaySetupDialog {
                     .add_modifier(Modifier::BOLD),
             ))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.accent));
+            .border_style(Style::default().fg(theme.accent))
+            .border_type(BorderType::Rounded);
 
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);

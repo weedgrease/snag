@@ -5,7 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use std::time::Duration;
 use uuid::Uuid;
@@ -295,7 +295,8 @@ impl AlertFormDialog {
                     .add_modifier(Modifier::BOLD),
             ))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(theme.accent));
+            .border_style(Style::default().fg(theme.accent))
+            .border_type(BorderType::Rounded);
 
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);

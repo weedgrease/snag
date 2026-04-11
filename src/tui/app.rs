@@ -14,7 +14,7 @@ use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::Frame;
 use std::time::{Duration, Instant};
 
@@ -573,70 +573,74 @@ impl App {
     }
 
     fn render_tabs(&self, frame: &mut Frame, area: Rect) {
-        let tab_titles: Vec<Line> = TabKind::all()
-            .iter()
-            .map(|t| {
-                let style = if *t == self.active_tab {
-                    Style::default()
-                        .fg(self.theme.active_tab)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(self.theme.inactive_tab)
-                };
-                Line::from(Span::styled(t.title(), style))
-            })
-            .collect();
+        let mut spans = vec![
+            Span::styled(" snag ", Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled("  ", Style::default()),
+        ];
 
-        let tabs = Tabs::new(tab_titles)
-            .block(
-                Block::default()
-                    .borders(Borders::BOTTOM)
-                    .border_style(Style::default().fg(self.theme.border))
-                    .title(Span::styled(
-                        " snag ",
-                        Style::default()
-                            .fg(self.theme.accent)
-                            .add_modifier(Modifier::BOLD),
-                    )),
-            )
-            .select(
-                TabKind::all()
-                    .iter()
-                    .position(|t| *t == self.active_tab)
-                    .unwrap_or(0),
-            )
-            .highlight_style(
-                Style::default()
-                    .fg(self.theme.active_tab)
-                    .add_modifier(Modifier::BOLD),
-            );
+        for (i, tab) in TabKind::all().iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::styled("  ", Style::default()));
+            }
+            if *tab == self.active_tab {
+                spans.push(Span::styled("[ ", Style::default().fg(self.theme.border)));
+                spans.push(Span::styled(tab.title(), Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD)));
+                spans.push(Span::styled(" ]", Style::default().fg(self.theme.border)));
+            } else {
+                spans.push(Span::styled("  ", Style::default()));
+                spans.push(Span::styled(tab.title(), Style::default().fg(self.theme.fg_dim)));
+                spans.push(Span::styled("  ", Style::default()));
+            }
+        }
 
-        frame.render_widget(tabs, area);
+        let tabs_line = Paragraph::new(Line::from(spans));
+        let block = Block::default()
+            .borders(Borders::BOTTOM)
+            .border_style(Style::default().fg(self.theme.border))
+            .border_type(BorderType::Rounded);
+        frame.render_widget(tabs_line.block(block), area);
     }
 
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
-        let hints = match self.active_tab {
-            TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce [l]istings [space]toggle [q]uit",
-            TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
-            TabKind::Settings => "[Enter] edit/setup [↑↓] navigate [q]uit",
-            TabKind::Logs => "[↑↓] navigate [←→] level [Enter] focus [Esc] back [q]uit",
+        let hints: Vec<(&str, &str)> = match self.active_tab {
+            TabKind::Alerts => vec![
+                (" n ", "New"), (" e ", "Edit"), (" d ", "Delete"),
+                (" f ", "Force"), (" l ", "Listings"), (" ␣ ", "Toggle"),
+                (" q ", "Quit"),
+            ],
+            TabKind::Results => vec![
+                (" o ", "Open"), (" m ", "Mark read"), (" c ", "Clear"),
+                (" q ", "Quit"),
+            ],
+            TabKind::Settings => vec![
+                (" Enter ", "Edit"), (" ↑↓ ", "Navigate"),
+                (" q ", "Quit"),
+            ],
+            TabKind::Logs => vec![
+                (" ↑↓ ", "Scroll"), (" ←→ ", "Level"), (" Enter ", "Focus"),
+                (" Esc ", "Back"), (" q ", "Quit"),
+            ],
         };
 
-        let bar = Paragraph::new(Line::from(vec![
+        let mut spans = vec![
             Span::styled(
                 " Tab/1-4 ",
                 Style::default()
                     .fg(self.theme.status_bar_fg)
                     .bg(self.theme.accent),
             ),
-            Span::styled(
-                format!(" {} ", hints),
-                Style::default()
-                    .fg(self.theme.status_bar_fg)
-                    .bg(self.theme.status_bar_bg),
-            ),
-        ]));
+            Span::styled(" ", Style::default().bg(self.theme.status_bar_bg)),
+        ];
 
+        for (i, (key, desc)) in hints.iter().enumerate() {
+            if i > 0 {
+                spans.push(Span::styled(" │ ", Style::default().fg(self.theme.border).bg(self.theme.status_bar_bg)));
+            }
+            spans.push(Span::styled(*key, Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD).bg(self.theme.status_bar_bg)));
+            spans.push(Span::styled(*desc, Style::default().fg(self.theme.fg_dim).bg(self.theme.status_bar_bg)));
+        }
+
+        let bar = Paragraph::new(Line::from(spans));
         frame.render_widget(bar, area);
     }
 }

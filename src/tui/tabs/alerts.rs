@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table};
+use ratatui::widgets::{Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table};
 use ratatui::Frame;
 
 pub struct AlertsTab {
@@ -183,8 +183,9 @@ impl AlertsTab {
                         .fg(theme.accent)
                         .add_modifier(Modifier::BOLD),
                 ))
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(list_border_color)),
+                .borders(Borders::TOP | Borders::LEFT | Borders::BOTTOM)
+                .border_style(Style::default().fg(list_border_color))
+                .border_type(BorderType::Rounded),
         );
 
         let mut state = self.list_state;
@@ -210,7 +211,8 @@ impl AlertsTab {
                     .add_modifier(Modifier::BOLD),
             ))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(detail_border_color));
+            .border_style(Style::default().fg(detail_border_color))
+            .border_type(BorderType::Rounded);
 
         let inner = block.inner(area);
         frame.render_widget(block, area);

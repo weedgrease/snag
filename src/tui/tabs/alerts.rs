@@ -482,6 +482,7 @@ impl AlertsTab {
             .iter()
             .filter(|r| r.alert_id == alert.id)
             .flat_map(|r| r.listings.iter())
+            .filter(|l| alert.marketplaces.contains(&l.marketplace))
             .collect();
         self.listing_count = alert_listings.len();
 

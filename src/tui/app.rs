@@ -237,6 +237,7 @@ impl App {
                                                 .iter()
                                                 .filter(|r| r.alert_id == alert.id)
                                                 .flat_map(|r| r.listings.iter())
+                                                .filter(|l| alert.marketplaces.contains(&l.marketplace))
                                                 .collect();
                                             if let Some(listing) = alert_listings.get(listing_idx) {
                                                 self.seen_ids.insert(listing.id.clone());

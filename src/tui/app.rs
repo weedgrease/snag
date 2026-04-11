@@ -305,6 +305,7 @@ impl App {
                 while let Ok(event) = rx.try_recv() {
                     match event {
                         crate::scheduler::SchedulerEvent::CheckComplete { status, result } => {
+                            log::debug!(target: "snag::app", "CheckComplete for alert {}: {} new results", status.alert_id, status.new_results);
                             upsert_status(&mut self.statuses, status);
                             if let Some(alert_result) = result {
                                 self.results.push(alert_result);
@@ -319,6 +320,7 @@ impl App {
                             );
                         }
                         crate::scheduler::SchedulerEvent::CheckError { alert_id, error } => {
+                            log::debug!(target: "snag::app", "CheckError for alert {}: {}", alert_id, error);
                             upsert_status(
                                 &mut self.statuses,
                                 crate::types::CheckStatus {

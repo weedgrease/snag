@@ -59,19 +59,30 @@ pub async fn check_alert(
     default_location: Option<&str>,
 ) -> Result<(CheckStatus, Vec<Listing>)> {
     let mut all_listings = vec![];
+    let mut last_error: Option<anyhow::Error> = None;
 
     for marketplace_kind in &alert.marketplaces {
         let marketplace = create_marketplace(*marketplace_kind);
         match marketplace.search(alert, default_location).await {
-            Ok(listings) => all_listings.extend(listings),
+            Ok(listings) => {
+                all_listings.extend(listings);
+                last_error = None;
+            }
             Err(e) => {
                 error!(
                     "marketplace {} failed for alert '{}': {e}",
                     marketplace.name(),
                     alert.name
                 );
+                last_error = Some(e);
             }
         }
+    }
+
+    if all_listings.is_empty()
+        && let Some(e) = last_error
+    {
+        return Err(e);
     }
 
     let total_fetched = all_listings.len();

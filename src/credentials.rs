@@ -6,9 +6,10 @@ const SERVICE_NAME: &str = "snag";
 
 pub fn store_credential(key: &str, value: &str) -> Result<()> {
     let entry = keyring::Entry::new(SERVICE_NAME, key).context("failed to create keyring entry")?;
-    entry
-        .set_password(value)
-        .context("failed to store credential in keyring")?;
+    entry.set_password(value).context(format!(
+        "failed to store credential '{}' in keyring — is a secret service (gnome-keyring, kwallet) running?",
+        key
+    ))?;
     Ok(())
 }
 

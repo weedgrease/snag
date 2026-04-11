@@ -14,6 +14,7 @@ pub trait Marketplace: Send + Sync {
 
 pub fn create_marketplace(kind: MarketplaceKind) -> Box<dyn Marketplace> {
     match kind {
+        MarketplaceKind::Ebay => Box::new(providers::ebay::EbayMarketplace::new()),
         MarketplaceKind::FacebookMarketplace => {
             Box::new(providers::facebook::FacebookMarketplace::new())
         }

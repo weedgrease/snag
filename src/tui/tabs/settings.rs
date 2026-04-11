@@ -110,6 +110,7 @@ impl SettingsTab {
                     return Some(SettingsAction::ConfigChanged);
                 }
             }
+            KeyCode::Char('e') => return Some(SettingsAction::SetupEbay),
             _ => {}
         }
         None
@@ -302,4 +303,5 @@ impl SettingsTab {
 
 pub enum SettingsAction {
     ConfigChanged,
+    SetupEbay,
 }

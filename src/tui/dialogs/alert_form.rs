@@ -83,6 +83,7 @@ impl AlertFormDialog {
 
     pub fn from_alert(alert: &Alert) -> Self {
         let marketplaces: Vec<String> = alert.marketplaces.iter().map(|m| match m {
+            MarketplaceKind::Ebay => "ebay".into(),
             MarketplaceKind::FacebookMarketplace => "facebook".into(),
         }).collect();
 
@@ -136,6 +137,7 @@ impl AlertFormDialog {
             .value
             .split(',')
             .filter_map(|s| match s.trim().to_lowercase().as_str() {
+                "ebay" => Some(MarketplaceKind::Ebay),
                 "facebook" | "fb" => Some(MarketplaceKind::FacebookMarketplace),
                 _ => None,
             })

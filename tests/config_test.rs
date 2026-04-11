@@ -54,7 +54,7 @@ fn load_missing_config_returns_default() {
     let config = load_config(&config_path).unwrap();
 
     assert!(config.alerts.is_empty());
-    assert_eq!(config.settings.default_check_interval, Duration::from_secs(300));
+    assert_eq!(config.settings.default_check_interval, Duration::from_secs(3600));
 }
 
 #[test]

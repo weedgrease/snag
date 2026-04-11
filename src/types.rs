@@ -58,12 +58,14 @@ pub struct CheckStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MarketplaceKind {
+    Ebay,
     FacebookMarketplace,
 }
 
 impl std::fmt::Display for MarketplaceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Ebay => write!(f, "eBay"),
             Self::FacebookMarketplace => write!(f, "Facebook Marketplace"),
         }
     }

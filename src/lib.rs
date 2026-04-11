@@ -1,4 +1,5 @@
 pub mod config;
+pub mod credentials;
 pub mod daemon;
 pub mod marketplace;
 pub mod notifier;

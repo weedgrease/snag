@@ -50,6 +50,7 @@ pub enum ActiveDialog {
     AlertForm(AlertFormDialog),
     Confirm(ConfirmDialog, ConfirmAction),
     ListingDetail(crate::tui::dialogs::listing_detail::ListingDetailDialog),
+    EbaySetup(crate::tui::dialogs::ebay_setup::EbaySetupDialog),
 }
 
 pub enum ConfirmAction {
@@ -291,10 +292,19 @@ impl App {
                                 }
                             }
                             TabKind::Settings => {
-                                if let Some(crate::tui::tabs::settings::SettingsAction::ConfigChanged) = self.settings_tab.handle_key(key, &mut self.config) {
-                                    let _ = save_config(&self.config, &self.config_path);
-                                    if let Some(ref tx) = self.config_tx {
-                                        let _ = tx.send(self.config.clone());
+                                if let Some(action) = self.settings_tab.handle_key(key, &mut self.config) {
+                                    match action {
+                                        crate::tui::tabs::settings::SettingsAction::ConfigChanged => {
+                                            let _ = save_config(&self.config, &self.config_path);
+                                            if let Some(ref tx) = self.config_tx {
+                                                let _ = tx.send(self.config.clone());
+                                            }
+                                        }
+                                        crate::tui::tabs::settings::SettingsAction::SetupEbay => {
+                                            self.active_dialog = Some(ActiveDialog::EbaySetup(
+                                                crate::tui::dialogs::ebay_setup::EbaySetupDialog::new(),
+                                            ));
+                                        }
                                     }
                                 }
                             }
@@ -445,6 +455,31 @@ impl App {
                     }
                 }
             }
+            Some(ActiveDialog::EbaySetup(dialog)) => {
+                let r = dialog.handle_key(key);
+                match r {
+                    DialogResult::Cancel => Some(DialogResult::<()>::Cancel),
+                    DialogResult::Continue => None,
+                    DialogResult::Submit(action) => {
+                        match action {
+                            crate::tui::dialogs::ebay_setup::EbaySetupAction::OpenRegistration => {
+                                let _ = open::that("https://developer.ebay.com/signin?tab=register");
+                                None
+                            }
+                            crate::tui::dialogs::ebay_setup::EbaySetupAction::SaveCredentials { client_id, client_secret } => {
+                                if let Err(e) = crate::credentials::store_credential("ebay_client_id", &client_id) {
+                                    log::error!(target: "snag::app", "Failed to store eBay client ID: {e}");
+                                }
+                                if let Err(e) = crate::credentials::store_credential("ebay_client_secret", &client_secret) {
+                                    log::error!(target: "snag::app", "Failed to store eBay client secret: {e}");
+                                }
+                                log::info!(target: "snag::app", "eBay API credentials saved to keyring");
+                                Some(DialogResult::<()>::Cancel)
+                            }
+                        }
+                    }
+                }
+            }
             None => None,
         };
 
@@ -513,6 +548,7 @@ impl App {
                 ActiveDialog::AlertForm(d) => d.render(frame, frame.area(), &self.theme),
                 ActiveDialog::Confirm(d, _) => d.render(frame, frame.area(), &self.theme),
                 ActiveDialog::ListingDetail(d) => d.render(frame, frame.area(), &self.theme),
+                ActiveDialog::EbaySetup(d) => d.render(frame, frame.area(), &self.theme),
             }
         }
     }
@@ -563,7 +599,7 @@ impl App {
         let hints = match self.active_tab {
             TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce [l]istings [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
-            TabKind::Settings => "[Enter] edit/toggle [↑↓] navigate [q]uit",
+            TabKind::Settings => "[Enter] edit/toggle [e]Bay setup [↑↓] navigate [q]uit",
             TabKind::Logs => "[↑↓] navigate [←→] level [Enter] focus [Esc] back [q]uit",
         };
 

@@ -6,24 +6,45 @@ use chrono::Utc;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const GRAPHQL_URL: &str = "https://www.facebook.com/api/graphql/";
 const LOCATION_DOC_ID: &str = "5585904654783609";
 const SEARCH_DOC_ID: &str = "7111939778879383";
 const RATE_LIMIT_BACKOFF: Duration = Duration::from_secs(3600);
 
-use std::sync::LazyLock;
-
-struct RateLimitState {
-    blocked_until: Option<Instant>,
+fn rate_limit_path() -> std::path::PathBuf {
+    crate::config::data_dir().join("fb_rate_limit")
 }
 
-static RATE_LIMIT: LazyLock<Mutex<RateLimitState>> = LazyLock::new(|| {
-    Mutex::new(RateLimitState {
-        blocked_until: None,
-    })
-});
+fn load_blocked_until() -> Option<chrono::DateTime<Utc>> {
+    let path = rate_limit_path();
+    let content = std::fs::read_to_string(&path).ok()?;
+    content.trim().parse::<chrono::DateTime<Utc>>().ok()
+}
+
+fn save_blocked_until(until: chrono::DateTime<Utc>) {
+    let path = rate_limit_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let _ = std::fs::write(&path, until.to_rfc3339());
+}
+
+fn clear_blocked_until() {
+    let _ = std::fs::remove_file(rate_limit_path());
+}
+
+fn is_rate_limited() -> Option<i64> {
+    let until = load_blocked_until()?;
+    let remaining = until.signed_duration_since(Utc::now()).num_seconds();
+    if remaining > 0 {
+        Some(remaining)
+    } else {
+        clear_blocked_until();
+        None
+    }
+}
 
 pub struct FacebookMarketplace {
     client: reqwest::Client,
@@ -273,15 +294,9 @@ impl Marketplace for FacebookMarketplace {
         alert: &Alert,
         default_location: Option<&str>,
     ) -> Result<Vec<Listing>> {
-        {
-            let state = RATE_LIMIT.lock().unwrap();
-            if let Some(blocked_until) = state.blocked_until
-                && Instant::now() < blocked_until
-            {
-                let remaining = blocked_until.duration_since(Instant::now());
-                log::warn!(target: "snag::facebook", "Rate limited, waiting {}s before next request", remaining.as_secs());
-                anyhow::bail!("Rate limited, retry in {}s", remaining.as_secs());
-            }
+        if let Some(remaining) = is_rate_limited() {
+            log::warn!(target: "snag::facebook", "Rate limited, waiting {}s before next request", remaining);
+            anyhow::bail!("Rate limited, retry in {}s", remaining);
         }
 
         let location_query = alert
@@ -325,8 +340,8 @@ impl Marketplace for FacebookMarketplace {
             let code = first.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
 
             if code == 1675004 {
-                let mut state = RATE_LIMIT.lock().unwrap();
-                state.blocked_until = Some(Instant::now() + RATE_LIMIT_BACKOFF);
+                let until = Utc::now() + chrono::Duration::seconds(RATE_LIMIT_BACKOFF.as_secs() as i64);
+                save_blocked_until(until);
                 log::error!(target: "snag::facebook", "Rate limited — backing off for {}s", RATE_LIMIT_BACKOFF.as_secs());
             } else {
                 log::error!(target: "snag::facebook", "Facebook API error (code {}): {}", code, msg);
@@ -336,10 +351,7 @@ impl Marketplace for FacebookMarketplace {
         }
 
         // Successful request — clear rate limit
-        {
-            let mut state = RATE_LIMIT.lock().unwrap();
-            state.blocked_until = None;
-        }
+        clear_blocked_until();
 
         let body: SearchResponse = serde_json::from_str(&body_text)
             .context("failed to parse search response as JSON")?;

@@ -54,6 +54,10 @@ impl ConfirmDialog {
         let dialog_area = Rect::new(x, y, dialog_width, dialog_height);
 
         frame.render_widget(Clear, dialog_area);
+        frame.render_widget(
+            Block::default().style(Style::default().bg(theme.bg)),
+            dialog_area,
+        );
 
         let block = Block::default()
             .title(Span::styled(

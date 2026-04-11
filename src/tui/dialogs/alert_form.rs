@@ -304,6 +304,10 @@ impl AlertFormDialog {
         let dialog_area = Rect::new(x, y, dialog_width, dialog_height);
 
         frame.render_widget(Clear, dialog_area);
+        frame.render_widget(
+            Block::default().style(ratatui::style::Style::default().bg(theme.bg)),
+            dialog_area,
+        );
 
         let title = if self.existing_id.is_some() {
             " Edit Alert "

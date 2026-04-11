@@ -209,6 +209,8 @@ impl App {
                                                     .flat_map(|r| r.listings.iter())
                                                     .collect();
                                                 if let Some(listing) = alert_listings.get(listing_idx) {
+                                                    self.seen_ids.insert(listing.id.clone());
+                                                    let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
                                                     let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                         (*listing).clone(),
                                                         alert.name.clone(),
@@ -277,6 +279,8 @@ impl App {
                                             let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
                                         }
                                         crate::tui::tabs::results::ResultsAction::ViewListing(listing, alert_name) => {
+                                            self.seen_ids.insert(listing.id.clone());
+                                            let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
                                             let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                 *listing,
                                                 alert_name,
@@ -424,6 +428,7 @@ impl App {
                 }
             }
             Some(ActiveDialog::ListingDetail(dialog)) => {
+                let listing_id = dialog.listing.id.clone();
                 let r = dialog.handle_key(key);
                 match r {
                     DialogResult::Cancel => Some(DialogResult::<()>::Cancel),
@@ -432,6 +437,8 @@ impl App {
                         match action {
                             crate::tui::dialogs::listing_detail::ListingDetailAction::OpenUrl(url) => {
                                 let _ = open::that(&url);
+                                self.seen_ids.insert(listing_id);
+                                let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
                             }
                         }
                         Some(DialogResult::<()>::Cancel)

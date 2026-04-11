@@ -627,6 +627,9 @@ impl App {
     }
 
     fn render(&mut self, frame: &mut Frame) {
+        let bg_block = Block::default().style(Style::default().bg(self.theme.bg));
+        frame.render_widget(bg_block, frame.area());
+
         let has_update = self.update_info.is_some();
 
         let chunks = if has_update {
@@ -704,7 +707,7 @@ impl App {
             let bar = Paragraph::new(Line::from(Span::styled(
                 text,
                 Style::default()
-                    .fg(self.theme.unread)
+                    .fg(self.theme.update)
                     .add_modifier(Modifier::BOLD),
             )))
             .style(Style::default().bg(self.theme.selected_bg));

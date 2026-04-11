@@ -85,13 +85,14 @@ impl ListingDetailDialog {
             let price_str = format!("${:.2}", price);
             rows.push(Row::new(vec![
                 Cell::from("Price").style(dim),
-                Cell::from(price_str).style(Style::default().fg(theme.accent)),
+                Cell::from(price_str).style(Style::default().fg(theme.price)),
             ]));
         }
 
         rows.push(Row::new(vec![
             Cell::from("Marketplace").style(dim),
-            Cell::from(self.listing.marketplace.to_string()).style(fg),
+            Cell::from(self.listing.marketplace.to_string())
+                .style(Style::default().fg(theme.marketplace)),
         ]));
 
         if let Some(ref loc) = self.listing.location {

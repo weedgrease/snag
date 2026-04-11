@@ -14,6 +14,9 @@ pub struct Theme {
     pub enabled: Color,
     pub disabled: Color,
     pub unread: Color,
+    pub price: Color,
+    pub update: Color,
+    pub marketplace: Color,
     pub status_bar_bg: Color,
     pub status_bar_fg: Color,
 }
@@ -23,10 +26,10 @@ const BACKGROUND: Color = Color::Rgb(40, 42, 54); // #282a36
 const CURRENT_LINE: Color = Color::Rgb(68, 71, 90); // #44475a
 const FOREGROUND: Color = Color::Rgb(248, 248, 242); // #f8f8f2
 const COMMENT: Color = Color::Rgb(98, 114, 164); // #6272a4
-const _CYAN: Color = Color::Rgb(139, 233, 253); // #8be9fd
+const CYAN: Color = Color::Rgb(139, 233, 253); // #8be9fd
 const GREEN: Color = Color::Rgb(80, 250, 123); // #50fa7b
-const _ORANGE: Color = Color::Rgb(255, 184, 108); // #ffb86c
-const _PINK: Color = Color::Rgb(255, 121, 198); // #ff79c6
+const ORANGE: Color = Color::Rgb(255, 184, 108); // #ffb86c
+const PINK: Color = Color::Rgb(255, 121, 198); // #ff79c6
 const PURPLE: Color = Color::Rgb(189, 147, 249); // #bd93f9
 const RED: Color = Color::Rgb(255, 85, 85); // #ff5555
 const YELLOW: Color = Color::Rgb(241, 250, 140); // #f1fa8c
@@ -45,6 +48,9 @@ impl Default for Theme {
             enabled: GREEN,
             disabled: RED,
             unread: YELLOW,
+            price: CYAN,
+            update: ORANGE,
+            marketplace: PINK,
             status_bar_bg: CURRENT_LINE,
             status_bar_fg: FOREGROUND,
         }

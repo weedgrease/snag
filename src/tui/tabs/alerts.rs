@@ -367,7 +367,8 @@ impl AlertsTab {
         let mut rows: Vec<Row> = vec![
             Row::new(vec![
                 Cell::from("Marketplaces").style(dim),
-                Cell::from(marketplaces_joined.as_str()).style(fg),
+                Cell::from(marketplaces_joined.as_str())
+                    .style(Style::default().fg(theme.marketplace)),
             ]),
             Row::new(vec![
                 Cell::from("Keywords").style(dim),
@@ -541,7 +542,7 @@ impl AlertsTab {
                         };
                         ListItem::new(Line::from(vec![
                             Span::styled(indicator, Style::default().fg(indicator_color)),
-                            Span::styled(price_str, Style::default().fg(theme.accent)),
+                            Span::styled(price_str, Style::default().fg(theme.price)),
                             Span::styled(title, title_style),
                         ]))
                     })

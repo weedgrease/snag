@@ -179,7 +179,7 @@ impl ResultsTab {
 
                 ListItem::new(Line::from(vec![
                     Span::styled(indicator, Style::default().fg(indicator_color)),
-                    Span::styled(price_str, Style::default().fg(theme.accent)),
+                    Span::styled(price_str, Style::default().fg(theme.price)),
                     Span::styled(title, style),
                 ]))
             })
@@ -294,7 +294,7 @@ impl ResultsTab {
 
         rows.push(Row::new(vec![
             Cell::from("Marketplace").style(dim),
-            Cell::from(marketplace_str.as_str()).style(fg),
+            Cell::from(marketplace_str.as_str()).style(Style::default().fg(theme.marketplace)),
         ]));
 
         if let Some(ref loc) = listing.location {

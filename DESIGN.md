@@ -31,10 +31,13 @@ No ornamental elements. Every visual signal has a purpose.
 | Enabled        | Dracula Green          | `#50fa7b` | Enabled alerts, ready marketplace status   |
 | Disabled       | Dracula Red            | `#ff5555` | Disabled alerts, error status              |
 | Unread         | Dracula Yellow         | `#f1fa8c` | New/unseen listing indicator               |
+| Price          | Dracula Cyan           | `#8be9fd` | Listing prices                             |
+| Update         | Dracula Orange         | `#ffb86c` | Update available notification              |
+| Marketplace    | Dracula Pink           | `#ff79c6` | Marketplace name indicators                |
 | Status bar BG  | Dracula Current Line   | `#44475a` | Bottom status bar background               |
 | Status bar FG  | Dracula Foreground     | `#f8f8f2` | Status bar text                            |
 
-Additional Dracula colors available but not currently mapped: Cyan (`#8be9fd`), Orange (`#ffb86c`), Pink (`#ff79c6`).
+All 10 Dracula palette colors are in use.
 
 ## TUI Layout
 

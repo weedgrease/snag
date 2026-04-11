@@ -24,7 +24,7 @@ main.rs          CLI entry (clap subcommands)
 lib.rs           Module declarations
 types.rs         Core domain types (Alert, Listing, AlertResult, CheckStatus)
 config.rs        TOML config at ~/.config/snag/
-credentials.rs   Keyring-based secret storage (eBay API keys)
+credentials.rs   File-based credential storage (eBay API keys) at ~/.config/snag/credentials.toml
 scheduler.rs     Shared scheduling logic with MPSC channels
 update.rs        Self-update from GitHub releases
 daemon/
@@ -51,7 +51,7 @@ tui/
 - **In-process scheduler**: The first TUI instance acquires a PID file lock and runs the scheduler internally via MPSC channels. Additional instances fall back to mtime-based file polling. `snag daemon` uses the same Scheduler but writes to files.
 - **File-based IPC**: TUI instances sync via shared JSON files (results.json, status.json, seen.json) with fs2 advisory locking. Follows the agent-of-empires pattern.
 - **Logging**: Uses the `log` crate facade with `tui-logger` for TUI rendering. The daemon uses `tracing-subscriber` for file-based logging (compatible via log bridge).
-- **Credentials**: eBay API keys stored in OS keyring via `keyring` crate. Never written to config files.
+- **Credentials**: eBay API keys stored in `~/.config/snag/credentials.toml` with restricted permissions (0600). Separate from config to avoid accidental exposure.
 - **Facebook API**: Uses undocumented internal GraphQL endpoint with hardcoded doc_ids. Fragile — can break without notice.
 - **Rate limiting**: Persisted to `~/.local/share/snag/rate_limit_{marketplace}` as RFC 3339 timestamps. Survives restarts.
 
@@ -108,7 +108,9 @@ The `release.yml` workflow builds binaries for Linux (x86_64, aarch64) and macOS
 ## Data Files
 
 - `~/.config/snag/config.toml` — alerts and settings
+- `~/.config/snag/credentials.toml` — marketplace API keys (0600 permissions)
 - `~/.local/share/snag/results.json` — matched listings
+- `~/.local/share/snag/update_cache.json` — cached update check result
 - `~/.local/share/snag/status.json` — per-alert check status
 - `~/.local/share/snag/seen.json` — seen listing IDs
 - `~/.local/share/snag/daemon.pid` — PID lock file

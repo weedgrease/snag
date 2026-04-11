@@ -12,7 +12,7 @@ snag monitors Facebook Marketplace and eBay for new listings matching your searc
 - **Background daemon** -- headless mode for continuous monitoring
 - **One-shot mode** -- `snag check` for cron jobs and scripts
 - **Self-update** -- `snag update` pulls the latest release from GitHub
-- **OS keyring integration** -- API credentials stored securely, never in config files
+- **Secure credential storage** -- API keys in a separate permissions-restricted file
 
 ## Installation
 
@@ -72,7 +72,7 @@ Requires API credentials from the [eBay Developer Program](https://developer.eba
 2. Select "eBay" under Marketplaces and press Enter
 3. Follow the setup wizard to register and enter your API keys
 
-Credentials are stored in your OS keyring (never written to disk).
+Credentials are stored in `~/.config/snag/credentials.toml` (file permissions restricted to owner-only).
 
 ## CLI Commands
 
@@ -158,7 +158,7 @@ src/
   lib.rs           Module declarations
   types.rs         Core domain types (Alert, Listing, AlertResult, CheckStatus)
   config.rs        TOML config management
-  credentials.rs   Keyring-based secret storage
+  credentials.rs   File-based credential storage
   scheduler.rs     Shared scheduling logic with MPSC channels
   update.rs        Self-update from GitHub releases
   daemon/          Headless daemon and file-based persistence

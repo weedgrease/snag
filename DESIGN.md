@@ -10,29 +10,31 @@ snag is a terminal-based marketplace listing alert tool. It monitors Facebook Ma
 
 ## Aesthetic Direction
 
-**"Alert Scanner"** -- clean, focused, functional. The interface prioritizes information density and scannability over decoration. Dark terminal background with selective color to draw attention to what matters: new listings, status changes, and active controls.
+**"Alert Scanner"** with a **Dracula** color palette. Clean, focused, functional. The interface prioritizes information density and scannability over decoration. Dark background with selective color to draw attention to what matters: new listings, status changes, and active controls.
 
 No ornamental elements. Every visual signal has a purpose.
 
 ## Color Palette
 
-Sourced from `src/tui/theme.rs`:
+[Dracula Theme](https://draculatheme.com/contribute) sourced from `src/tui/theme.rs`:
 
-| Role           | Color                  | Hex / Name     | Usage                                      |
-|----------------|------------------------|----------------|---------------------------------------------|
-| Background     | Terminal default        | `Reset`        | Inherits user's terminal background         |
-| Foreground     | White                  | `#FFFFFF`      | Primary text                                |
-| Dim            | DarkGray               | `#808080`      | Labels, inactive text, hints                |
-| Accent         | Cyan                   | `#00FFFF`      | Active tab, focused borders, key highlights |
-| Active tab     | Cyan                   | `#00FFFF`      | Selected tab indicator                      |
-| Inactive tab   | DarkGray               | `#808080`      | Unselected tab labels                       |
-| Border         | DarkGray               | `#808080`      | Panel borders (unfocused)                   |
-| Selected BG    | RGB(40, 40, 60)        | `#28283C`      | Highlighted row background                  |
-| Enabled        | Green                  | `#00FF00`      | Enabled alerts, ready status                |
-| Disabled       | Red                    | `#FF0000`      | Disabled alerts, error status               |
-| Unread         | Yellow                 | `#FFFF00`      | New/unseen listing indicator                |
-| Status bar BG  | RGB(30, 30, 50)        | `#1E1E32`      | Bottom status bar background                |
-| Status bar FG  | White                  | `#FFFFFF`      | Status bar text                             |
+| Role           | Color                  | Hex       | Usage                                      |
+|----------------|------------------------|-----------|--------------------------------------------|
+| Background     | Dracula Background     | `#282a36` | Panel backgrounds                          |
+| Foreground     | Dracula Foreground     | `#f8f8f2` | Primary text                               |
+| Dim            | Dracula Comment        | `#6272a4` | Labels, inactive text, hints, borders      |
+| Accent         | Dracula Purple         | `#bd93f9` | Active tab, focused borders, key highlights|
+| Active tab     | Dracula Purple         | `#bd93f9` | Selected tab indicator                     |
+| Inactive tab   | Dracula Comment        | `#6272a4` | Unselected tab labels                      |
+| Border         | Dracula Comment        | `#6272a4` | Panel borders (unfocused)                  |
+| Selected BG    | Dracula Current Line   | `#44475a` | Highlighted row background                 |
+| Enabled        | Dracula Green          | `#50fa7b` | Enabled alerts, ready marketplace status   |
+| Disabled       | Dracula Red            | `#ff5555` | Disabled alerts, error status              |
+| Unread         | Dracula Yellow         | `#f1fa8c` | New/unseen listing indicator               |
+| Status bar BG  | Dracula Current Line   | `#44475a` | Bottom status bar background               |
+| Status bar FG  | Dracula Foreground     | `#f8f8f2` | Status bar text                            |
+
+Additional Dracula colors available but not currently mapped: Cyan (`#8be9fd`), Orange (`#ffb86c`), Pink (`#ff79c6`).
 
 ## TUI Layout
 
@@ -63,7 +65,7 @@ Sourced from `src/tui/theme.rs`:
 
 **Settings tab**: Single panel with two sections (Defaults, Marketplaces). Arrow cursor (`>`) on selected field. Inline editing with underline indicator.
 
-**Logs tab**: Full-width log viewer via `tui-logger`.
+**Logs tab**: Horizontal split-pane. Left target selector (30 columns) + right log viewer. Focus indicator via accent border on active pane.
 
 ## Interaction Patterns
 
@@ -78,11 +80,11 @@ Sourced from `src/tui/theme.rs`:
 
 | Icon | Meaning             | Color   |
 |------|----------------------|---------|
-| `●`  | Alert enabled        | Green   |
-| `○`  | Alert disabled       | Red     |
-| `●`  | New/unseen listing   | Yellow  |
-| `  ` | Seen listing         | (none)  |
-| `▸`  | Selected setting     | Cyan    |
+| `●`  | Alert enabled        | Green (`#50fa7b`)  |
+| `○`  | Alert disabled       | Red (`#ff5555`)    |
+| `●`  | New/unseen listing   | Yellow (`#f1fa8c`) |
+| `  ` | Seen listing         | (none)             |
+| `▸`  | Selected setting     | Purple (`#bd93f9`) |
 
 ## Typography
 
@@ -91,12 +93,12 @@ Monospace terminal font (user's default). No font selection or sizing -- the ter
 - **Bold**: Tab titles, panel headers, alert names, listing titles.
 - **Underlined**: Actively edited settings fields.
 - **Normal weight**: Detail table values, descriptions, status text.
-- **Dim (DarkGray)**: Labels, hints, inactive elements.
+- **Dim (Comment `#6272a4`)**: Labels, hints, inactive elements.
 
 ## Component Patterns
 
 ### Blocks
-All panels use `Block` with `BorderType::Rounded`. Focused panels get `accent` border color; unfocused panels get `border` (DarkGray).
+All panels use `Block` with `BorderType::Rounded`. Focused panels get `accent` (Purple) border color; unfocused panels get `border` (Comment).
 
 ### Tables
 Key-value detail display uses `Table` widget with two columns: 16-char fixed label (dim) + flexible value (fg). No visible borders on the table itself.
@@ -111,4 +113,4 @@ Centered overlay on `frame.area()`. Same `Block` + `BorderType::Rounded` pattern
 Single row. First segment is inverted (fg on accent bg) showing global navigation. Remaining segments are accent-colored keys with dim descriptions, separated by `|` in border color.
 
 ### Text Truncation
-Long text is truncated with `...` via `truncate_str()` to prevent layout overflow. Applied to alert names and listing titles in list views.
+Long text is truncated with `…` (Unicode ellipsis) via `truncate_str()` to prevent layout overflow. Applied to alert names and listing titles in list views.

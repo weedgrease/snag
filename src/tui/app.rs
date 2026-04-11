@@ -674,7 +674,7 @@ impl App {
                 self.settings_tab
                     .render(frame, chunks[1], &self.theme, &self.config)
             }
-            TabKind::Logs => self.logs_tab.render(frame, chunks[1]),
+            TabKind::Logs => self.logs_tab.render(frame, chunks[1], &self.theme),
         }
 
         if has_update {

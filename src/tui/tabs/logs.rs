@@ -1,7 +1,8 @@
+use crate::tui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::Span;
 use ratatui::widgets::{Block, BorderType, Borders};
 
@@ -73,16 +74,16 @@ impl LogsTab {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Length(30), Constraint::Min(40)])
             .split(area);
 
         let selector_border_color = if self.selector_focused {
-            Color::Cyan
+            theme.accent
         } else {
-            Color::DarkGray
+            theme.border
         };
         let selector_block = Block::default()
             .borders(Borders::ALL)
@@ -97,27 +98,27 @@ impl LogsTab {
 
         let hl_style = if self.selector_focused {
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD)
         } else if self.target_selected {
-            Style::default().fg(Color::Cyan)
+            Style::default().fg(theme.accent)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(theme.fg)
         };
 
         let selector = tui_logger::TuiLoggerTargetWidget::default()
-            .style_show(Style::default().fg(Color::White))
-            .style_hide(Style::default().fg(Color::DarkGray))
-            .style_off(Style::default().fg(Color::DarkGray))
+            .style_show(Style::default().fg(theme.fg))
+            .style_hide(Style::default().fg(theme.fg_dim))
+            .style_off(Style::default().fg(theme.fg_dim))
             .highlight_style(hl_style)
             .block(selector_block)
             .state(&self.state);
         frame.render_widget(selector, chunks[0]);
 
         let log_border_color = if self.selector_focused {
-            Color::DarkGray
+            theme.border
         } else {
-            Color::Cyan
+            theme.accent
         };
         let log_block = Block::default()
             .borders(Borders::ALL)
@@ -131,11 +132,11 @@ impl LogsTab {
             ));
 
         let logs = tui_logger::TuiLoggerWidget::default()
-            .style_error(Style::default().fg(Color::Red))
-            .style_warn(Style::default().fg(Color::Yellow))
-            .style_info(Style::default().fg(Color::White))
-            .style_debug(Style::default().fg(Color::DarkGray))
-            .style_trace(Style::default().fg(Color::DarkGray))
+            .style_error(Style::default().fg(theme.disabled))
+            .style_warn(Style::default().fg(theme.unread))
+            .style_info(Style::default().fg(theme.fg))
+            .style_debug(Style::default().fg(theme.fg_dim))
+            .style_trace(Style::default().fg(theme.fg_dim))
             .output_timestamp(Some("%H:%M:%S".to_string()))
             .block(log_block)
             .state(&self.state);

@@ -67,7 +67,7 @@ tui/
 
 ## Visual Changes
 
-Read `DESIGN.md` before making any visual or TUI changes. It documents the color palette, layout patterns, component conventions, and interaction model.
+Read `DESIGN.md` before making any visual or TUI changes. The TUI uses the **Dracula** color palette (`src/tui/theme.rs`). All colors must come from the theme — never hardcode `Color::` values directly. The Logs tab accepts `&Theme` just like all other tabs.
 
 ## CI
 

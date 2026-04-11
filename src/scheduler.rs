@@ -7,9 +7,10 @@ use chrono::Utc;
 use fs2::FileExt;
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
+use std::io::Write;
 use std::time::Instant;
 use tokio::sync::{mpsc, watch};
-use tracing::error;
+use log::error;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -30,7 +31,7 @@ pub fn try_acquire_scheduler_lock() -> Option<File> {
         let _ = std::fs::create_dir_all(parent);
     }
 
-    let file = OpenOptions::new()
+    let mut file = OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
@@ -42,7 +43,9 @@ pub fn try_acquire_scheduler_lock() -> Option<File> {
         return None;
     }
 
-    let _ = std::fs::write(&pid_path, std::process::id().to_string());
+    file.set_len(0).ok()?;
+    file.write_all(std::process::id().to_string().as_bytes()).ok()?;
+    file.flush().ok()?;
     Some(file)
 }
 

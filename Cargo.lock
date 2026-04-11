@@ -2193,7 +2193,6 @@ dependencies = [
  "directories",
  "fs2",
  "keyring",
- "libc",
  "log",
  "open",
  "ratatui",

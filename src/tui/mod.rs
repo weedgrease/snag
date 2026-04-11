@@ -2,6 +2,7 @@ pub mod app;
 pub mod dialogs;
 pub mod tabs;
 pub mod theme;
+pub mod utils;
 
 use anyhow::Result;
 use crossterm::{
@@ -15,6 +16,13 @@ use std::io;
 pub async fn run() -> Result<()> {
     tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
     tui_logger::set_default_level(log::LevelFilter::Trace);
+
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        original_hook(panic_info);
+    }));
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();

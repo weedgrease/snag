@@ -337,14 +337,18 @@ impl App {
                             if let Some(alert_result) = result {
                                 self.results.push(alert_result);
                             }
-                            let _ = crate::daemon::results::save_results(
+                            if let Err(e) = crate::daemon::results::save_results(
                                 &self.results,
                                 &self.results_path,
-                            );
-                            let _ = crate::daemon::results::save_status(
+                            ) {
+                                log::error!(target: "snag::app", "failed to save results: {e}");
+                            }
+                            if let Err(e) = crate::daemon::results::save_status(
                                 &self.statuses,
                                 &self.status_path,
-                            );
+                            ) {
+                                log::error!(target: "snag::app", "failed to save status: {e}");
+                            }
                         }
                         crate::scheduler::SchedulerEvent::CheckError { alert_id, error } => {
                             log::debug!(target: "snag::app", "CheckError for alert {}: {}", alert_id, error);
@@ -357,10 +361,12 @@ impl App {
                                     error: Some(error),
                                 },
                             );
-                            let _ = crate::daemon::results::save_status(
+                            if let Err(e) = crate::daemon::results::save_status(
                                 &self.statuses,
                                 &self.status_path,
-                            );
+                            ) {
+                                log::error!(target: "snag::app", "failed to save status: {e}");
+                            }
                         }
                     }
                 }
@@ -427,12 +433,10 @@ impl App {
                     DialogResult::Continue => None,
                     DialogResult::Submit(alert) => {
                         // Add or update alert in config
-                        if let Some(existing_id) = alert.id.into() {
-                            if let Some(pos) = self.config.alerts.iter().position(|a| a.id == existing_id) {
-                                self.config.alerts[pos] = alert;
-                            } else {
-                                self.config.alerts.push(alert);
-                            }
+                        if let Some(pos) = self.config.alerts.iter().position(|a| a.id == alert.id) {
+                            self.config.alerts[pos] = alert;
+                        } else {
+                            self.config.alerts.push(alert);
                         }
                         let _ = save_config(&self.config, &self.config_path);
                         if let Some(ref tx) = self.config_tx {

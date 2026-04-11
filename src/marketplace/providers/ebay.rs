@@ -31,7 +31,7 @@ impl Default for EbayMarketplace {
 impl EbayMarketplace {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
-            .user_agent("snag/0.1.0")
+            .user_agent(format!("snag/{}", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("failed to build HTTP client");
 
@@ -226,7 +226,7 @@ impl Marketplace for EbayMarketplace {
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
             log::error!(target: "snag::ebay", "Search failed ({}): {}", status,
-                if body.len() > 500 { &body[..500] } else { &body });
+                body.char_indices().nth(500).map(|(i, _)| &body[..i]).unwrap_or(&body));
             anyhow::bail!("eBay search failed ({})", status);
         }
 

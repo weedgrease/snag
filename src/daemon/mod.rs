@@ -9,7 +9,7 @@ use results::{load_results, load_status, results_path, save_results, save_status
 use std::collections::HashSet;
 use std::path::Path;
 use tokio::sync::{mpsc, watch};
-use tracing::{error, info};
+use log::{error, info};
 
 pub async fn run() -> Result<()> {
     let log_path = config::data_dir().join("daemon.log");
@@ -79,9 +79,13 @@ pub async fn run() -> Result<()> {
                 upsert_status(&mut statuses, status);
                 if let Some(alert_result) = result {
                     all_results.push(alert_result);
-                    let _ = save_results(&all_results, &results_path);
+                    if let Err(e) = save_results(&all_results, &results_path) {
+                        error!("failed to save results: {e}");
+                    }
                 }
-                let _ = save_status(&statuses, &status_path);
+                if let Err(e) = save_status(&statuses, &status_path) {
+                    error!("failed to save status: {e}");
+                }
             }
             SchedulerEvent::CheckError { alert_id, error } => {
                 error!("alert check failed: {error}");
@@ -94,7 +98,9 @@ pub async fn run() -> Result<()> {
                         error: Some(error),
                     },
                 );
-                let _ = save_status(&statuses, &status_path);
+                if let Err(e) = save_status(&statuses, &status_path) {
+                    error!("failed to save status: {e}");
+                }
             }
         }
     }
@@ -145,7 +151,9 @@ pub async fn check_once_with_paths(
                         checked_at: Utc::now(),
                         seen: false,
                     });
-                    let _ = save_results(&all_results, results_path);
+                    if let Err(e) = save_results(&all_results, results_path) {
+                        error!("failed to save results: {e}");
+                    }
                 }
             }
             Err(e) => {
@@ -163,7 +171,9 @@ pub async fn check_once_with_paths(
         }
     }
 
-    let _ = save_status(&statuses, status_path);
+    if let Err(e) = save_status(&statuses, status_path) {
+        error!("failed to save status: {e}");
+    }
     Ok(())
 }
 

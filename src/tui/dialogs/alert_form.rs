@@ -16,6 +16,7 @@ pub struct AlertFormDialog {
     pub editing: bool,
     pub existing_id: Option<Uuid>,
     pub default_location: Option<String>,
+    pub original_enabled: bool,
 }
 
 pub struct FormField {
@@ -78,6 +79,7 @@ impl AlertFormDialog {
             editing: false,
             existing_id: None,
             default_location: None,
+            original_enabled: true,
         }
     }
 
@@ -111,6 +113,7 @@ impl AlertFormDialog {
             editing: false,
             existing_id: Some(alert.id),
             default_location: None,
+            original_enabled: alert.enabled,
         }
     }
 
@@ -216,7 +219,7 @@ impl AlertFormDialog {
             check_interval: Duration::from_secs(interval_secs),
             notifiers: vec![NotifierKind::Terminal],
             max_results,
-            enabled: true,
+            enabled: self.original_enabled,
         })
     }
 

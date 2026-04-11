@@ -1,4 +1,5 @@
 use crate::tui::theme::Theme;
+use crate::tui::utils::truncate_str;
 use crate::types::AlertResult;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -334,20 +335,6 @@ impl ResultsTab {
         ));
         frame.render_widget(hint, chunks[3]);
     }
-}
-
-fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len || max_len <= 1 {
-        return s.to_string();
-    }
-    let target = max_len.saturating_sub(1);
-    let boundary = s
-        .char_indices()
-        .take_while(|(i, _)| *i < target)
-        .last()
-        .map(|(i, c)| i + c.len_utf8())
-        .unwrap_or(0);
-    format!("{}…", &s[..boundary])
 }
 
 pub enum ResultsAction {

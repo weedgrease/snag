@@ -74,7 +74,7 @@ impl FacebookMarketplace {
         let body_text = response.text().await.context("failed to read location response body")?;
         log::debug!(target: "snag::facebook", "Location API response ({} bytes): {}",
             body_text.len(),
-            if body_text.len() > 500 { &body_text[..500] } else { &body_text }
+            body_text.char_indices().nth(500).map(|(i, _)| &body_text[..i]).unwrap_or(&body_text)
         );
 
         let body: serde_json::Value = serde_json::from_str(&body_text)
@@ -299,7 +299,7 @@ impl Marketplace for FacebookMarketplace {
         let body_text = response.text().await.context("failed to read search response body")?;
         log::debug!(target: "snag::facebook", "Search API response ({} bytes): {}",
             body_text.len(),
-            if body_text.len() > 500 { &body_text[..500] } else { &body_text }
+            body_text.char_indices().nth(500).map(|(i, _)| &body_text[..i]).unwrap_or(&body_text)
         );
 
         if let Ok(error_check) = serde_json::from_str::<serde_json::Value>(&body_text)

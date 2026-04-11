@@ -14,12 +14,11 @@ pub fn status_path() -> std::path::PathBuf {
 }
 
 pub fn load_results(path: &Path) -> Result<Vec<AlertResult>> {
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-
-    let mut file = File::open(path)
-        .with_context(|| format!("failed to open results at {}", path.display()))?;
+    let mut file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(e) => return Err(e).with_context(|| format!("failed to open results at {}", path.display())),
+    };
 
     file.lock_shared()
         .context("failed to acquire shared lock on results")?;
@@ -27,8 +26,6 @@ pub fn load_results(path: &Path) -> Result<Vec<AlertResult>> {
     let mut content = String::new();
     file.read_to_string(&mut content)
         .context("failed to read results")?;
-
-    file.unlock().context("failed to release lock on results")?;
 
     if content.trim().is_empty() {
         return Ok(vec![]);
@@ -41,12 +38,11 @@ pub fn load_results(path: &Path) -> Result<Vec<AlertResult>> {
 }
 
 pub fn load_status(path: &Path) -> Result<Vec<crate::types::CheckStatus>> {
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-
-    let mut file = File::open(path)
-        .with_context(|| format!("failed to open status at {}", path.display()))?;
+    let mut file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(e) => return Err(e).with_context(|| format!("failed to open status at {}", path.display())),
+    };
 
     file.lock_shared()
         .context("failed to acquire shared lock on status")?;
@@ -54,8 +50,6 @@ pub fn load_status(path: &Path) -> Result<Vec<crate::types::CheckStatus>> {
     let mut content = String::new();
     file.read_to_string(&mut content)
         .context("failed to read status")?;
-
-    file.unlock().context("failed to release lock on status")?;
 
     if content.trim().is_empty() {
         return Ok(vec![]);
@@ -76,20 +70,19 @@ pub fn save_status(status: &[crate::types::CheckStatus], path: &Path) -> Result<
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
-        .truncate(true)
+        .truncate(false)
         .open(path)
         .with_context(|| format!("failed to open status for writing at {}", path.display()))?;
 
     file.lock_exclusive()
         .context("failed to acquire exclusive lock on status")?;
 
+    file.set_len(0).context("failed to truncate status file")?;
+
     let content = serde_json::to_string_pretty(status).context("failed to serialize status")?;
 
     file.write_all(content.as_bytes())
         .context("failed to write status")?;
-
-    file.unlock()
-        .context("failed to release lock on status")?;
 
     Ok(())
 }
@@ -99,12 +92,11 @@ pub fn seen_path() -> std::path::PathBuf {
 }
 
 pub fn load_seen(path: &Path) -> Result<std::collections::HashSet<String>> {
-    if !path.exists() {
-        return Ok(std::collections::HashSet::new());
-    }
-
-    let mut file = File::open(path)
-        .with_context(|| format!("failed to open seen at {}", path.display()))?;
+    let mut file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(std::collections::HashSet::new()),
+        Err(e) => return Err(e).with_context(|| format!("failed to open seen at {}", path.display())),
+    };
 
     file.lock_shared()
         .context("failed to acquire shared lock on seen")?;
@@ -112,8 +104,6 @@ pub fn load_seen(path: &Path) -> Result<std::collections::HashSet<String>> {
     let mut content = String::new();
     file.read_to_string(&mut content)
         .context("failed to read seen")?;
-
-    file.unlock().context("failed to release lock on seen")?;
 
     if content.trim().is_empty() {
         return Ok(std::collections::HashSet::new());
@@ -134,21 +124,20 @@ pub fn save_seen(seen: &std::collections::HashSet<String>, path: &Path) -> Resul
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
-        .truncate(true)
+        .truncate(false)
         .open(path)
         .with_context(|| format!("failed to open seen for writing at {}", path.display()))?;
 
     file.lock_exclusive()
         .context("failed to acquire exclusive lock on seen")?;
 
+    file.set_len(0).context("failed to truncate seen file")?;
+
     let seen_vec: Vec<&String> = seen.iter().collect();
     let content = serde_json::to_string(&seen_vec).context("failed to serialize seen")?;
 
     file.write_all(content.as_bytes())
         .context("failed to write seen")?;
-
-    file.unlock()
-        .context("failed to release lock on seen")?;
 
     Ok(())
 }
@@ -162,20 +151,19 @@ pub fn save_results(results: &[AlertResult], path: &Path) -> Result<()> {
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
-        .truncate(true)
+        .truncate(false)
         .open(path)
         .with_context(|| format!("failed to open results for writing at {}", path.display()))?;
 
     file.lock_exclusive()
         .context("failed to acquire exclusive lock on results")?;
 
+    file.set_len(0).context("failed to truncate results file")?;
+
     let content = serde_json::to_string_pretty(results).context("failed to serialize results")?;
 
     file.write_all(content.as_bytes())
         .context("failed to write results")?;
-
-    file.unlock()
-        .context("failed to release lock on results")?;
 
     Ok(())
 }

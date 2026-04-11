@@ -11,19 +11,16 @@ use std::time::{Duration, Instant};
 const GRAPHQL_URL: &str = "https://www.facebook.com/api/graphql/";
 const LOCATION_DOC_ID: &str = "5585904654783609";
 const SEARCH_DOC_ID: &str = "7111939778879383";
-const INITIAL_BACKOFF: Duration = Duration::from_secs(3600);
-const MAX_BACKOFF: Duration = Duration::from_secs(7200);
+const RATE_LIMIT_BACKOFF: Duration = Duration::from_secs(3600);
 
 use std::sync::LazyLock;
 
 struct RateLimitState {
-    backoff: Duration,
     blocked_until: Option<Instant>,
 }
 
 static RATE_LIMIT: LazyLock<Mutex<RateLimitState>> = LazyLock::new(|| {
     Mutex::new(RateLimitState {
-        backoff: INITIAL_BACKOFF,
         blocked_until: None,
     })
 });
@@ -329,10 +326,8 @@ impl Marketplace for FacebookMarketplace {
 
             if code == 1675004 {
                 let mut state = RATE_LIMIT.lock().unwrap();
-                let backoff = state.backoff;
-                state.blocked_until = Some(Instant::now() + backoff);
-                state.backoff = (backoff * 2).min(MAX_BACKOFF);
-                log::error!(target: "snag::facebook", "Rate limited — backing off for {}s", backoff.as_secs());
+                state.blocked_until = Some(Instant::now() + RATE_LIMIT_BACKOFF);
+                log::error!(target: "snag::facebook", "Rate limited — backing off for {}s", RATE_LIMIT_BACKOFF.as_secs());
             } else {
                 log::error!(target: "snag::facebook", "Facebook API error (code {}): {}", code, msg);
             }
@@ -340,10 +335,9 @@ impl Marketplace for FacebookMarketplace {
             anyhow::bail!("Facebook API error (code {}): {}", code, msg);
         }
 
-        // Successful request — reset backoff
+        // Successful request — clear rate limit
         {
             let mut state = RATE_LIMIT.lock().unwrap();
-            state.backoff = INITIAL_BACKOFF;
             state.blocked_until = None;
         }
 

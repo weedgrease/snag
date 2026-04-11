@@ -370,7 +370,7 @@ impl AlertFormDialog {
 
     pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let dialog_width = 60u16.min(area.width.saturating_sub(4));
-        let mp_extra: u16 = if self.mp_selecting { 2 } else { 0 };
+        let mp_extra: u16 = if self.mp_selecting { 1 } else { 0 };
         let dialog_height =
             (self.fields.len() as u16 + 6 + mp_extra).min(area.height.saturating_sub(4));
 
@@ -404,12 +404,13 @@ impl AlertFormDialog {
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);
 
-        let mp_extra = if self.mp_selecting { 2 } else { 0 };
+        let mp_rows: u16 = if self.mp_selecting { 2 } else { 1 };
         let mut constraints: Vec<Constraint> = Vec::new();
         for (i, _) in self.fields.iter().enumerate() {
-            constraints.push(Constraint::Length(1));
             if i == 1 {
-                constraints.push(Constraint::Length(mp_extra));
+                constraints.push(Constraint::Length(mp_rows));
+            } else {
+                constraints.push(Constraint::Length(1));
             }
         }
         constraints.push(Constraint::Length(1));
@@ -444,16 +445,13 @@ impl AlertFormDialog {
             let cursor = if is_selected && !self.mp_selecting { "▸ " } else { "  " };
 
             if i == 1 {
-                let mp_summary = self.marketplace_summary();
-                let line = Line::from(vec![
-                    Span::styled(cursor, Style::default().fg(theme.accent)),
-                    Span::styled(format!("{:<20}", field.label), label_style),
-                    Span::styled(mp_summary, value_style),
-                ]);
-                frame.render_widget(Paragraph::new(line), chunks[chunk_idx]);
-                chunk_idx += 1;
-
                 if self.mp_selecting {
+                    let mp_area = chunks[chunk_idx];
+                    let mp_chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([Constraint::Length(1), Constraint::Length(1)])
+                        .split(mp_area);
+
                     let fb_check = if self.mp_facebook { "✓" } else { " " };
                     let ebay_check = if self.mp_ebay { "✓" } else { " " };
                     let fb_cursor = if self.mp_cursor == 0 { "▸ " } else { "  " };
@@ -474,17 +472,24 @@ impl AlertFormDialog {
                         Span::styled(format!("[{}] ", fb_check), Style::default().fg(theme.enabled)),
                         Span::styled("Facebook Marketplace", fb_style),
                     ]);
-                    frame.render_widget(Paragraph::new(fb_line), chunks[chunk_idx]);
-                    chunk_idx += 1;
+                    frame.render_widget(Paragraph::new(fb_line), mp_chunks[0]);
 
                     let ebay_line = Line::from(vec![
                         Span::styled(ebay_cursor, Style::default().fg(theme.accent)),
                         Span::styled(format!("[{}] ", ebay_check), Style::default().fg(theme.enabled)),
                         Span::styled("eBay", ebay_style),
                     ]);
-                    frame.render_widget(Paragraph::new(ebay_line), chunks[chunk_idx]);
-                    chunk_idx += 1;
+                    frame.render_widget(Paragraph::new(ebay_line), mp_chunks[1]);
+                } else {
+                    let mp_summary = self.marketplace_summary();
+                    let line = Line::from(vec![
+                        Span::styled(cursor, Style::default().fg(theme.accent)),
+                        Span::styled(format!("{:<20}", field.label), label_style),
+                        Span::styled(mp_summary, value_style),
+                    ]);
+                    frame.render_widget(Paragraph::new(line), chunks[chunk_idx]);
                 }
+                chunk_idx += 1;
                 continue;
             }
 

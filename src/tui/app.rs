@@ -327,6 +327,7 @@ impl App {
                                 key,
                                 &mut self.results,
                                 &mut self.seen_ids,
+                                &self.config,
                             ) {
                                 match action {
                                     crate::tui::tabs::results::ResultsAction::OpenUrl(url) => {
@@ -672,6 +673,7 @@ impl App {
                 &self.theme,
                 &self.results,
                 &self.seen_ids,
+                &self.config,
             ),
             TabKind::Settings => {
                 self.settings_tab

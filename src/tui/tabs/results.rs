@@ -1,3 +1,4 @@
+use crate::config::AppConfig;
 use crate::tui::theme::Theme;
 use crate::tui::utils::truncate_str;
 use crate::types::AlertResult;
@@ -38,10 +39,21 @@ impl ResultsTab {
         }
     }
 
-    fn flatten(results: &[AlertResult]) -> Vec<FlatListing> {
+    fn flatten(results: &[AlertResult], config: &AppConfig) -> Vec<FlatListing> {
         let mut flat = vec![];
         for (ri, result) in results.iter().enumerate().rev() {
-            for (li, _listing) in result.listings.iter().enumerate() {
+            let active_marketplaces = config
+                .alerts
+                .iter()
+                .find(|a| a.id == result.alert_id)
+                .map(|a| &a.marketplaces);
+
+            for (li, listing) in result.listings.iter().enumerate() {
+                if let Some(mps) = active_marketplaces {
+                    if !mps.contains(&listing.marketplace) {
+                        continue;
+                    }
+                }
                 flat.push(FlatListing {
                     alert_name: result.alert_name.clone(),
                     result_idx: ri,
@@ -57,8 +69,9 @@ impl ResultsTab {
         key: KeyEvent,
         results: &mut Vec<AlertResult>,
         seen_ids: &mut std::collections::HashSet<String>,
+        config: &AppConfig,
     ) -> Option<ResultsAction> {
-        let flat = Self::flatten(results);
+        let flat = Self::flatten(results, config);
         let count = flat.len();
 
         match key.code {
@@ -115,8 +128,9 @@ impl ResultsTab {
         theme: &Theme,
         results: &[AlertResult],
         seen_ids: &std::collections::HashSet<String>,
+        config: &AppConfig,
     ) {
-        let flat = Self::flatten(results);
+        let flat = Self::flatten(results, config);
 
         let max_title_len = flat
             .iter()

@@ -103,7 +103,7 @@ impl ListingDetailDialog {
 
         // Determine whether to show an image area
         let show_image_area = self.image_loading || self.image_state.is_some();
-        let image_height: u16 = if show_image_area { 10 } else { 0 };
+        let image_height: u16 = if show_image_area { 16 } else { 0 };
 
         // Determine whether to show a description area
         let fetched_desc = self.description.as_ref().or(self.listing.description.as_ref());
@@ -144,10 +144,10 @@ impl ListingDetailDialog {
             constraints.push(Constraint::Length(image_height));
         }
         constraints.push(Constraint::Length(2)); // title
-        constraints.push(Constraint::Min(1));    // details table
         if show_desc_area {
             constraints.push(Constraint::Length(desc_height));
         }
+        constraints.push(Constraint::Min(1));    // details table
         constraints.push(Constraint::Length(2)); // URL
         constraints.push(Constraint::Length(1)); // hint
 
@@ -182,6 +182,26 @@ impl ListingDetailDialog {
         .wrap(Wrap { trim: false });
         frame.render_widget(title, chunks[idx]);
         idx += 1;
+
+        // Description area (right after title)
+        if show_desc_area {
+            let desc_area = chunks[idx];
+            idx += 1;
+
+            if self.description_loading {
+                let loading = Paragraph::new(Span::styled(
+                    "Loading description...",
+                    Style::default().fg(theme.fg_dim),
+                ));
+                frame.render_widget(loading, desc_area);
+            } else if let Some(desc) = fetched_desc {
+                let cleaned = strip_html(desc);
+                let desc_para = Paragraph::new(cleaned.as_str())
+                    .style(Style::default().fg(theme.fg_dim))
+                    .wrap(Wrap { trim: false });
+                frame.render_widget(desc_para, desc_area);
+            }
+        }
 
         // Details table
         let dim = Style::default().fg(theme.fg_dim);
@@ -239,34 +259,6 @@ impl ListingDetailDialog {
         frame.render_widget(table, chunks[idx]);
         idx += 1;
 
-        // Description area
-        if show_desc_area {
-            let desc_area = chunks[idx];
-            idx += 1;
-            let desc_block = Block::default()
-                .title(Span::styled(
-                    " Description ",
-                    Style::default().fg(theme.fg_dim),
-                ))
-                .borders(Borders::TOP)
-                .border_style(Style::default().fg(theme.border));
-            let desc_inner = desc_block.inner(desc_area);
-            frame.render_widget(desc_block, desc_area);
-
-            if self.description_loading {
-                let loading = Paragraph::new(Span::styled(
-                    "Loading description...",
-                    Style::default().fg(theme.fg_dim),
-                ));
-                frame.render_widget(loading, desc_inner);
-            } else if let Some(desc) = fetched_desc {
-                let desc_para = Paragraph::new(desc.as_str())
-                    .style(Style::default().fg(theme.fg))
-                    .wrap(Wrap { trim: false });
-                frame.render_widget(desc_para, desc_inner);
-            }
-        }
-
         // URL
         let url = Paragraph::new(Line::from(vec![
             Span::styled("URL  ", dim),
@@ -296,6 +288,30 @@ async fn fetch_image(url: &str) -> anyhow::Result<image::DynamicImage> {
         .await?;
     let img = image::load_from_memory(&bytes)?;
     Ok(img)
+}
+
+fn strip_html(html: &str) -> String {
+    let mut result = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for ch in html.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                result.push(' ');
+            }
+            _ if !in_tag => result.push(ch),
+            _ => {}
+        }
+    }
+    let cleaned = result
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ");
+    cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 pub enum ListingDetailAction {

@@ -260,6 +260,17 @@ impl App {
                                                 });
                                             }
                                         }
+                                        crate::tui::tabs::alerts::AlertsAction::ClearAlertResults(idx) => {
+                                            if let Some(alert) = self.config.alerts.get(idx) {
+                                                let alert_id = alert.id;
+                                                self.results.retain(|r| r.alert_id != alert_id);
+                                                let _ = crate::daemon::results::save_results(
+                                                    &self.results,
+                                                    &self.results_path,
+                                                );
+                                                log::info!(target: "snag::app", "Cleared results for alert '{}'", alert.name);
+                                            }
+                                        }
                                     }
                                 }
                             }

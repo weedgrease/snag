@@ -62,6 +62,11 @@ impl AlertsTab {
                 KeyCode::Esc => {
                     self.listing_focus = false;
                 }
+                KeyCode::Char('c') => {
+                    self.listing_selected = 0;
+                    self.listing_state.select(Some(0));
+                    return Some(AlertsAction::ClearAlertResults(self.selected));
+                }
                 _ => {}
             }
             return None;
@@ -500,4 +505,5 @@ pub enum AlertsAction {
     DeleteAlert(usize),
     ForceCheck(usize),
     ViewListing(usize, usize),
+    ClearAlertResults(usize),
 }

@@ -291,27 +291,7 @@ async fn fetch_image(url: &str) -> anyhow::Result<image::DynamicImage> {
 }
 
 fn strip_html(html: &str) -> String {
-    let mut result = String::with_capacity(html.len());
-    let mut in_tag = false;
-    for ch in html.chars() {
-        match ch {
-            '<' => in_tag = true,
-            '>' => {
-                in_tag = false;
-                result.push(' ');
-            }
-            _ if !in_tag => result.push(ch),
-            _ => {}
-        }
-    }
-    let cleaned = result
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&nbsp;", " ");
-    cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
+    html2text::from_read(html.as_bytes(), 200).unwrap_or_else(|_| html.to_string())
 }
 
 pub enum ListingDetailAction {

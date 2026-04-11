@@ -654,11 +654,18 @@ impl App {
 
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
         let mut hints: Vec<(&str, &str)> = match self.active_tab {
-            TabKind::Alerts => vec![
-                (" n ", "New"), (" e ", "Edit"), (" d ", "Delete"),
-                (" f ", "Force"), (" l ", "Listings"), (" ␣ ", "Toggle"),
-                (" q ", "Quit"),
-            ],
+            TabKind::Alerts => if self.alerts_tab.listing_focus {
+                vec![
+                    (" Enter ", "Details"), (" c ", "Clear"), (" Esc ", "Back"),
+                    (" q ", "Quit"),
+                ]
+            } else {
+                vec![
+                    (" n ", "New"), (" e ", "Edit"), (" d ", "Delete"),
+                    (" f ", "Force"), (" l ", "Listings"), (" ␣ ", "Toggle"),
+                    (" q ", "Quit"),
+                ]
+            },
             TabKind::Results => vec![
                 (" o ", "Open"), (" m ", "Mark read"), (" c ", "Clear"),
                 (" q ", "Quit"),

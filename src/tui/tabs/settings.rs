@@ -14,7 +14,13 @@ const FIELD_MAX_RESULTS: usize = 1;
 const FIELD_NOTIFICATION: usize = 2;
 const FIELD_CHECK_UPDATES: usize = 3;
 const FIELD_DEFAULT_LOCATION: usize = 4;
-const FIELD_COUNT: usize = 5;
+const DEFAULTS_COUNT: usize = 5;
+
+const _MP_FACEBOOK: usize = 0;
+const MP_EBAY: usize = 1;
+const MARKETPLACE_COUNT: usize = 2;
+
+const TOTAL_ITEMS: usize = DEFAULTS_COUNT + MARKETPLACE_COUNT;
 
 pub struct SettingsTab {
     pub selected: usize,
@@ -36,6 +42,18 @@ impl SettingsTab {
             editing: false,
             edit_buffer: String::new(),
             update_banner: None,
+        }
+    }
+
+    fn is_defaults_field(&self) -> bool {
+        self.selected < DEFAULTS_COUNT
+    }
+
+    fn marketplace_index(&self) -> Option<usize> {
+        if self.selected >= DEFAULTS_COUNT {
+            Some(self.selected - DEFAULTS_COUNT)
+        } else {
+            None
         }
     }
 
@@ -72,26 +90,32 @@ impl SettingsTab {
                 }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if self.selected < FIELD_COUNT - 1 {
+                if self.selected < TOTAL_ITEMS - 1 {
                     self.selected += 1;
                 }
             }
             KeyCode::Enter => {
-                match self.selected {
-                    FIELD_CHECK_UPDATES => {
-                        config.settings.check_for_updates = !config.settings.check_for_updates;
-                        return Some(SettingsAction::ConfigChanged);
+                if self.is_defaults_field() {
+                    match self.selected {
+                        FIELD_CHECK_UPDATES => {
+                            config.settings.check_for_updates = !config.settings.check_for_updates;
+                            return Some(SettingsAction::ConfigChanged);
+                        }
+                        FIELD_NOTIFICATION => {
+                            config.settings.default_notifier = match config.settings.default_notifier {
+                                NotifierKind::Terminal => NotifierKind::Terminal,
+                            };
+                            return Some(SettingsAction::ConfigChanged);
+                        }
+                        _ => {
+                            self.editing = true;
+                            self.edit_buffer = self.current_field_value(config);
+                        }
                     }
-                    FIELD_NOTIFICATION => {
-                        config.settings.default_notifier = match config.settings.default_notifier {
-                            NotifierKind::Terminal => NotifierKind::Terminal,
-                        };
-                        return Some(SettingsAction::ConfigChanged);
-                    }
-                    _ => {
-                        self.editing = true;
-                        self.edit_buffer = self.current_field_value(config);
-                    }
+                } else if let Some(mp_idx) = self.marketplace_index()
+                    && mp_idx == MP_EBAY
+                {
+                    return Some(SettingsAction::SetupMarketplace(MarketplaceSetup::Ebay));
                 }
             }
             KeyCode::Left | KeyCode::Char('h') => {
@@ -110,7 +134,6 @@ impl SettingsTab {
                     return Some(SettingsAction::ConfigChanged);
                 }
             }
-            KeyCode::Char('e') => return Some(SettingsAction::SetupEbay),
             _ => {}
         }
         None
@@ -137,9 +160,10 @@ impl SettingsTab {
         match self.selected {
             FIELD_CHECK_INTERVAL => {
                 if let Ok(secs) = self.edit_buffer.trim().parse::<u64>()
-                    && secs > 0 {
-                        config.settings.default_check_interval = Duration::from_secs(secs);
-                    }
+                    && secs > 0
+                {
+                    config.settings.default_check_interval = Duration::from_secs(secs);
+                }
             }
             FIELD_MAX_RESULTS => {
                 let trimmed = self.edit_buffer.trim();
@@ -178,18 +202,23 @@ impl SettingsTab {
         let has_banner = self.update_banner.is_some();
         let banner_height = if has_banner { 3 } else { 0 };
 
+        let defaults_height = 4 + DEFAULTS_COUNT as u16;
+        let marketplaces_height = 4 + MARKETPLACE_COUNT as u16;
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(4 + FIELD_COUNT as u16 + 2),
+                Constraint::Length(defaults_height),
+                Constraint::Length(marketplaces_height),
                 Constraint::Length(banner_height),
                 Constraint::Min(0),
             ])
             .split(inner);
 
         self.render_defaults_section(frame, chunks[0], theme, config);
+        self.render_marketplaces_section(frame, chunks[1], theme);
         if let Some(ref banner) = self.update_banner {
-            self.render_update_banner(frame, chunks[1], theme, banner);
+            self.render_update_banner(frame, chunks[2], theme, banner);
         }
     }
 
@@ -271,11 +300,51 @@ impl SettingsTab {
             ]));
         }
 
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "  [Enter] edit/toggle  [↑↓] navigate",
-            Style::default().fg(theme.fg_dim),
-        )));
+        let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+        frame.render_widget(paragraph, area);
+    }
+
+    fn render_marketplaces_section(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let fb_status = "Ready";
+        let fb_status_color = theme.enabled;
+
+        let ebay_configured = crate::credentials::ebay_credentials_configured();
+        let ebay_status = if ebay_configured { "Ready" } else { "Not configured" };
+        let ebay_status_color = if ebay_configured { theme.enabled } else { theme.disabled };
+
+        let marketplaces = [
+            ("Facebook Marketplace", fb_status, fb_status_color),
+            ("eBay", ebay_status, ebay_status_color),
+        ];
+
+        let mut lines = vec![
+            Line::from(Span::styled(
+                "Marketplaces",
+                Style::default()
+                    .fg(theme.fg)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+        ];
+
+        for (i, (name, status, status_color)) in marketplaces.iter().enumerate() {
+            let global_idx = DEFAULTS_COUNT + i;
+            let is_selected = global_idx == self.selected;
+
+            let cursor = if is_selected { "▸ " } else { "  " };
+
+            let name_style = if is_selected {
+                Style::default().fg(theme.accent)
+            } else {
+                Style::default().fg(theme.fg)
+            };
+
+            lines.push(Line::from(vec![
+                Span::styled(cursor, Style::default().fg(theme.accent)),
+                Span::styled(format!("{:<24}", name), name_style),
+                Span::styled(*status, Style::default().fg(*status_color)),
+            ]));
+        }
 
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
         frame.render_widget(paragraph, area);
@@ -303,5 +372,9 @@ impl SettingsTab {
 
 pub enum SettingsAction {
     ConfigChanged,
-    SetupEbay,
+    SetupMarketplace(MarketplaceSetup),
+}
+
+pub enum MarketplaceSetup {
+    Ebay,
 }

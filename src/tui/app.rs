@@ -300,7 +300,9 @@ impl App {
                                                 let _ = tx.send(self.config.clone());
                                             }
                                         }
-                                        crate::tui::tabs::settings::SettingsAction::SetupEbay => {
+                                        crate::tui::tabs::settings::SettingsAction::SetupMarketplace(
+                                            crate::tui::tabs::settings::MarketplaceSetup::Ebay,
+                                        ) => {
                                             self.active_dialog = Some(ActiveDialog::EbaySetup(
                                                 crate::tui::dialogs::ebay_setup::EbaySetupDialog::new(),
                                             ));
@@ -599,7 +601,7 @@ impl App {
         let hints = match self.active_tab {
             TabKind::Alerts => "[n]ew [e]dit [d]elete [f]orce [l]istings [space]toggle [q]uit",
             TabKind::Results => "[o]pen [m]ark read [c]lear [q]uit",
-            TabKind::Settings => "[Enter] edit/toggle [e]Bay setup [↑↓] navigate [q]uit",
+            TabKind::Settings => "[Enter] edit/setup [↑↓] navigate [q]uit",
             TabKind::Logs => "[↑↓] navigate [←→] level [Enter] focus [Esc] back [q]uit",
         };
 

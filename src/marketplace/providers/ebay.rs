@@ -174,6 +174,38 @@ struct Image {
     image_url: Option<String>,
 }
 
+pub async fn fetch_item_description(item_id: &str) -> anyhow::Result<Option<String>> {
+    if !crate::credentials::ebay_credentials_configured() {
+        return Ok(None);
+    }
+
+    let provider = EbayMarketplace::new();
+    let token = provider.get_access_token().await?;
+
+    let url = format!("https://api.ebay.com/buy/browse/v1/item/{}", item_id);
+    let response = provider
+        .client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("X-EBAY-C-MARKETPLACE-ID", "EBAY_US")
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ItemDetail {
+        description: Option<String>,
+        #[serde(rename = "shortDescription")]
+        short_description: Option<String>,
+    }
+
+    let detail: ItemDetail = response.json().await?;
+    Ok(detail.description.or(detail.short_description))
+}
+
 #[async_trait]
 impl Marketplace for EbayMarketplace {
     fn name(&self) -> &str {

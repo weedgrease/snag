@@ -7,17 +7,64 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
+use ratatui_image::StatefulImage;
+use ratatui_image::protocol::StatefulProtocol;
 
 pub struct ListingDetailDialog {
     pub listing: Listing,
     pub alert_name: String,
+    image_state: Option<StatefulProtocol>,
+    image_loading: bool,
+    image_rx: Option<tokio::sync::oneshot::Receiver<Option<image::DynamicImage>>>,
+    description: Option<String>,
+    description_loading: bool,
+    description_rx: Option<tokio::sync::oneshot::Receiver<Option<String>>>,
+    picker: Option<ratatui_image::picker::Picker>,
 }
 
 impl ListingDetailDialog {
     pub fn new(listing: Listing, alert_name: String) -> Self {
+        let picker = ratatui_image::picker::Picker::from_query_stdio().ok();
+
+        // Spawn image download
+        let (img_tx, img_rx) = tokio::sync::oneshot::channel();
+        let image_url = listing.image_url.clone();
+        tokio::spawn(async move {
+            let result = if let Some(url) = image_url {
+                fetch_image(&url).await.ok()
+            } else {
+                None
+            };
+            let _ = img_tx.send(result);
+        });
+
+        // Spawn description fetch for eBay listings
+        let (desc_tx, desc_rx) = tokio::sync::oneshot::channel();
+        let listing_id = listing.id.clone();
+        let marketplace = listing.marketplace;
+        let description_loading = marketplace == crate::types::MarketplaceKind::Ebay;
+        tokio::spawn(async move {
+            let result = if marketplace == crate::types::MarketplaceKind::Ebay {
+                crate::marketplace::providers::ebay::fetch_item_description(&listing_id)
+                    .await
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            };
+            let _ = desc_tx.send(result);
+        });
+
         Self {
             listing,
             alert_name,
+            image_state: None,
+            image_loading: true,
+            image_rx: Some(img_rx),
+            description: None,
+            description_loading,
+            description_rx: Some(desc_rx),
+            picker,
         }
     }
 
@@ -31,9 +78,41 @@ impl ListingDetailDialog {
         }
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
+    pub fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // Poll image receiver
+        if let Some(ref mut rx) = self.image_rx {
+            if let Ok(result) = rx.try_recv() {
+                if let Some(img) = result {
+                    if let Some(ref picker) = self.picker {
+                        self.image_state = Some(picker.new_resize_protocol(img));
+                    }
+                }
+                self.image_loading = false;
+                self.image_rx = None;
+            }
+        }
+
+        // Poll description receiver
+        if let Some(ref mut rx) = self.description_rx {
+            if let Ok(result) = rx.try_recv() {
+                self.description = result;
+                self.description_loading = false;
+                self.description_rx = None;
+            }
+        }
+
+        // Determine whether to show an image area
+        let show_image_area = self.image_loading || self.image_state.is_some();
+        let image_height: u16 = if show_image_area { 10 } else { 0 };
+
+        // Determine whether to show a description area
+        let fetched_desc = self.description.as_ref().or(self.listing.description.as_ref());
+        let show_desc_area = self.description_loading || fetched_desc.is_some();
+        let desc_height: u16 = if show_desc_area { 6 } else { 0 };
+
         let dialog_width = 70u16.min(area.width.saturating_sub(4));
-        let dialog_height = 28u16.min(area.height.saturating_sub(4));
+        let base_height: u16 = 18;
+        let dialog_height = (base_height + image_height + desc_height).min(area.height.saturating_sub(4));
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
         let y = area.y + (area.height.saturating_sub(dialog_height)) / 2;
@@ -59,27 +138,52 @@ impl ListingDetailDialog {
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);
 
-        let has_description = self.listing.description.is_some();
-        let desc_height = if has_description { 5u16 } else { 0 };
+        // Build layout constraints dynamically
+        let mut constraints = vec![];
+        if show_image_area {
+            constraints.push(Constraint::Length(image_height));
+        }
+        constraints.push(Constraint::Length(2)); // title
+        constraints.push(Constraint::Min(1));    // details table
+        if show_desc_area {
+            constraints.push(Constraint::Length(desc_height));
+        }
+        constraints.push(Constraint::Length(2)); // URL
+        constraints.push(Constraint::Length(1)); // hint
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(2),
-                Constraint::Min(1),
-                Constraint::Length(desc_height),
-                Constraint::Length(2),
-                Constraint::Length(1),
-            ])
+            .constraints(constraints)
             .split(inner);
 
+        let mut idx = 0;
+
+        // Image area
+        if show_image_area {
+            let image_area = chunks[idx];
+            idx += 1;
+            if let Some(ref mut state) = self.image_state {
+                let image_widget = StatefulImage::default();
+                frame.render_stateful_widget(image_widget, image_area, state);
+            } else if self.image_loading {
+                let loading = Paragraph::new(Span::styled(
+                    "Loading image...",
+                    Style::default().fg(theme.fg_dim),
+                ));
+                frame.render_widget(loading, image_area);
+            }
+        }
+
+        // Title
         let title = Paragraph::new(Span::styled(
             &self.listing.title,
             Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
         ))
         .wrap(Wrap { trim: false });
-        frame.render_widget(title, chunks[0]);
+        frame.render_widget(title, chunks[idx]);
+        idx += 1;
 
+        // Details table
         let dim = Style::default().fg(theme.fg_dim);
         let fg = Style::default().fg(theme.fg);
 
@@ -132,9 +236,13 @@ impl ListingDetailDialog {
 
         let widths = [Constraint::Length(16), Constraint::Min(10)];
         let table = Table::new(rows, widths);
-        frame.render_widget(table, chunks[1]);
+        frame.render_widget(table, chunks[idx]);
+        idx += 1;
 
-        if let Some(ref desc) = self.listing.description {
+        // Description area
+        if show_desc_area {
+            let desc_area = chunks[idx];
+            idx += 1;
             let desc_block = Block::default()
                 .title(Span::styled(
                     " Description ",
@@ -142,27 +250,52 @@ impl ListingDetailDialog {
                 ))
                 .borders(Borders::TOP)
                 .border_style(Style::default().fg(theme.border));
-            let desc_inner = desc_block.inner(chunks[2]);
-            frame.render_widget(desc_block, chunks[2]);
-            let desc_para = Paragraph::new(desc.as_str())
-                .style(Style::default().fg(theme.fg))
-                .wrap(Wrap { trim: false });
-            frame.render_widget(desc_para, desc_inner);
+            let desc_inner = desc_block.inner(desc_area);
+            frame.render_widget(desc_block, desc_area);
+
+            if self.description_loading {
+                let loading = Paragraph::new(Span::styled(
+                    "Loading description...",
+                    Style::default().fg(theme.fg_dim),
+                ));
+                frame.render_widget(loading, desc_inner);
+            } else if let Some(desc) = fetched_desc {
+                let desc_para = Paragraph::new(desc.as_str())
+                    .style(Style::default().fg(theme.fg))
+                    .wrap(Wrap { trim: false });
+                frame.render_widget(desc_para, desc_inner);
+            }
         }
 
+        // URL
         let url = Paragraph::new(Line::from(vec![
             Span::styled("URL  ", dim),
             Span::styled(&self.listing.url, Style::default().fg(theme.accent)),
         ]))
         .wrap(Wrap { trim: false });
-        frame.render_widget(url, chunks[3]);
+        frame.render_widget(url, chunks[idx]);
+        idx += 1;
 
+        // Hint
         let hint = Paragraph::new(Span::styled(
             "[o] open in browser  [Esc] close",
             Style::default().fg(theme.fg_dim),
         ));
-        frame.render_widget(hint, chunks[4]);
+        frame.render_widget(hint, chunks[idx]);
     }
+}
+
+async fn fetch_image(url: &str) -> anyhow::Result<image::DynamicImage> {
+    let bytes = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?
+        .get(url)
+        .send()
+        .await?
+        .bytes()
+        .await?;
+    let img = image::load_from_memory(&bytes)?;
+    Ok(img)
 }
 
 pub enum ListingDetailAction {

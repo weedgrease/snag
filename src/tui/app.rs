@@ -52,7 +52,7 @@ pub struct App {
 pub enum ActiveDialog {
     AlertForm(AlertFormDialog),
     Confirm(ConfirmDialog, ConfirmAction),
-    ListingDetail(crate::tui::dialogs::listing_detail::ListingDetailDialog),
+    ListingDetail(Box<crate::tui::dialogs::listing_detail::ListingDetailDialog>),
     EbaySetup(crate::tui::dialogs::ebay_setup::EbaySetupDialog),
 }
 
@@ -245,10 +245,10 @@ impl App {
                                                     &self.seen_ids,
                                                     &self.seen_path,
                                                 );
-                                                let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
+                                                let dialog = Box::new(crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                         (*listing).clone(),
                                                         alert.name.clone(),
-                                                    );
+                                                    ));
                                                 self.active_dialog =
                                                     Some(ActiveDialog::ListingDetail(dialog));
                                             }
@@ -357,10 +357,10 @@ impl App {
                                             &self.seen_ids,
                                             &self.seen_path,
                                         );
-                                        let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
+                                        let dialog = Box::new(crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                 *listing,
                                                 alert_name,
-                                            );
+                                            ));
                                         self.active_dialog =
                                             Some(ActiveDialog::ListingDetail(dialog));
                                     }
@@ -688,7 +688,7 @@ impl App {
         }
 
         // Draw dialogs on top of normal content
-        if let Some(dialog) = &self.active_dialog {
+        if let Some(dialog) = &mut self.active_dialog {
             match dialog {
                 ActiveDialog::AlertForm(d) => d.render(frame, frame.area(), &self.theme),
                 ActiveDialog::Confirm(d, _) => d.render(frame, frame.area(), &self.theme),

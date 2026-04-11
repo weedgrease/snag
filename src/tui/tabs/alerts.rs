@@ -267,7 +267,10 @@ impl AlertsTab {
         if max_str.is_some() { row_count += 1; }
         row_count += 1; // Status always present
         let check_status = statuses.iter().find(|s| s.alert_id == alert.id);
-        if check_status.is_some() { row_count += 1; } // Last check
+        if let Some(cs) = check_status {
+            row_count += 1; // Last check
+            if cs.error.is_some() { row_count += 1; } // Error row
+        }
 
         // Layout: name (2), detail table (exact), divider (1), listings (remaining).
         let chunks = Layout::default()
@@ -369,25 +372,28 @@ impl AlertsTab {
                 format!("{}s ago", ago.num_seconds())
             };
 
-            let last_check_line = if let Some(ref err) = cs.error {
-                Line::from(vec![
-                    Span::styled(ago_str, Style::default().fg(theme.fg)),
-                    Span::styled(format!(" — error: {}", err), Style::default().fg(theme.disabled)),
-                ])
+            if let Some(ref err) = cs.error {
+                rows.push(Row::new(vec![
+                    Cell::from("Last check").style(dim),
+                    Cell::from(ago_str).style(fg),
+                ]));
+                rows.push(Row::new(vec![
+                    Cell::from("Error").style(Style::default().fg(theme.disabled)),
+                    Cell::from(err.as_str()).style(Style::default().fg(theme.disabled)),
+                ]));
             } else {
-                Line::from(vec![
+                let last_check_line = Line::from(vec![
                     Span::styled(ago_str, Style::default().fg(theme.fg)),
                     Span::styled(
                         format!(" — {} new results", cs.new_results),
                         Style::default().fg(theme.accent),
                     ),
-                ])
-            };
-
-            rows.push(Row::new(vec![
-                Cell::from("Last check").style(dim),
-                Cell::from(last_check_line),
-            ]));
+                ]);
+                rows.push(Row::new(vec![
+                    Cell::from("Last check").style(dim),
+                    Cell::from(last_check_line),
+                ]));
+            }
         }
 
         let widths = [Constraint::Length(16), Constraint::Min(10)];

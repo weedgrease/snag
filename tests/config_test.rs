@@ -17,25 +17,23 @@ fn save_and_load_config_round_trips() {
             check_for_updates: true,
             default_location: None,
         },
-        alerts: vec![
-            Alert {
-                id: Uuid::nil(),
-                name: "Test Alert".into(),
-                marketplaces: vec![MarketplaceKind::FacebookMarketplace],
-                keywords: vec!["ps5".into()],
-                exclude_keywords: vec!["broken".into()],
-                price_min: Some(100.0),
-                price_max: Some(500.0),
-                location: Some("Denver, CO".into()),
-                radius_miles: Some(25),
-                condition: Some(Condition::Used),
-                category: Some("Electronics".into()),
-                check_interval: Duration::from_secs(300),
-                notifiers: vec![NotifierKind::Terminal],
-                max_results: Some(20),
-                enabled: true,
-            },
-        ],
+        alerts: vec![Alert {
+            id: Uuid::nil(),
+            name: "Test Alert".into(),
+            marketplaces: vec![MarketplaceKind::FacebookMarketplace],
+            keywords: vec!["ps5".into()],
+            exclude_keywords: vec!["broken".into()],
+            price_min: Some(100.0),
+            price_max: Some(500.0),
+            location: Some("Denver, CO".into()),
+            radius_miles: Some(25),
+            condition: Some(Condition::Used),
+            category: Some("Electronics".into()),
+            check_interval: Duration::from_secs(300),
+            notifiers: vec![NotifierKind::Terminal],
+            max_results: Some(20),
+            enabled: true,
+        }],
     };
 
     save_config(&config, &config_path).unwrap();
@@ -43,7 +41,10 @@ fn save_and_load_config_round_trips() {
 
     assert_eq!(loaded.alerts.len(), 1);
     assert_eq!(loaded.alerts[0].name, "Test Alert");
-    assert_eq!(loaded.settings.default_check_interval, Duration::from_secs(300));
+    assert_eq!(
+        loaded.settings.default_check_interval,
+        Duration::from_secs(300)
+    );
 }
 
 #[test]
@@ -54,7 +55,10 @@ fn load_missing_config_returns_default() {
     let config = load_config(&config_path).unwrap();
 
     assert!(config.alerts.is_empty());
-    assert_eq!(config.settings.default_check_interval, Duration::from_secs(3600));
+    assert_eq!(
+        config.settings.default_check_interval,
+        Duration::from_secs(3600)
+    );
 }
 
 #[test]

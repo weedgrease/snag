@@ -3,11 +3,14 @@ use crate::tui::theme::Theme;
 use crate::tui::utils::truncate_str;
 use chrono::Utc;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table};
-use ratatui::Frame;
+use ratatui::widgets::{
+    Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar,
+    ScrollbarOrientation, ScrollbarState, Table,
+};
 
 pub struct AlertsTab {
     pub selected: usize,
@@ -58,7 +61,10 @@ impl AlertsTab {
                     }
                 }
                 KeyCode::Enter => {
-                    return Some(AlertsAction::ViewListing(self.selected, self.listing_selected));
+                    return Some(AlertsAction::ViewListing(
+                        self.selected,
+                        self.listing_selected,
+                    ));
                 }
                 KeyCode::Esc => {
                     self.listing_focus = false;
@@ -127,8 +133,19 @@ impl AlertsTab {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
-        let max_name_len = config.alerts.iter()
+    pub fn render(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        config: &AppConfig,
+        statuses: &[crate::types::CheckStatus],
+        results: &[crate::types::AlertResult],
+        seen_ids: &std::collections::HashSet<String>,
+    ) {
+        let max_name_len = config
+            .alerts
+            .iter()
             .map(|a| a.name.len())
             .max()
             .unwrap_or(10);
@@ -174,7 +191,11 @@ impl AlertsTab {
             })
             .collect();
 
-        let list_border_color = if !self.listing_focus { theme.accent } else { theme.border };
+        let list_border_color = if !self.listing_focus {
+            theme.accent
+        } else {
+            theme.border
+        };
         let list = List::new(items).block(
             Block::default()
                 .title(Span::styled(
@@ -192,17 +213,33 @@ impl AlertsTab {
         frame.render_stateful_widget(list, area, &mut state);
 
         if config.alerts.len() > area.height.saturating_sub(2) as usize {
-            let mut scrollbar_state = ScrollbarState::new(config.alerts.len())
-                .position(self.selected);
+            let mut scrollbar_state =
+                ScrollbarState::new(config.alerts.len()).position(self.selected);
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-            let scrollbar_area = area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 0 });
+            let scrollbar_area = area.inner(ratatui::layout::Margin {
+                vertical: 1,
+                horizontal: 0,
+            });
             frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn render_detail(&mut self, frame: &mut Frame, area: Rect, theme: &Theme, config: &AppConfig, statuses: &[crate::types::CheckStatus], results: &[crate::types::AlertResult], seen_ids: &std::collections::HashSet<String>) {
-        let detail_border_color = if self.listing_focus { theme.accent } else { theme.border };
+    fn render_detail(
+        &mut self,
+        frame: &mut Frame,
+        area: Rect,
+        theme: &Theme,
+        config: &AppConfig,
+        statuses: &[crate::types::CheckStatus],
+        results: &[crate::types::AlertResult],
+        seen_ids: &std::collections::HashSet<String>,
+    ) {
+        let detail_border_color = if self.listing_focus {
+            theme.accent
+        } else {
+            theme.border
+        };
         let block = Block::default()
             .title(Span::styled(
                 " Details ",
@@ -228,15 +265,22 @@ impl AlertsTab {
         };
 
         // Pre-bind all temporary strings so they live long enough.
-        let marketplaces_str: Vec<String> = alert.marketplaces.iter().map(|m| m.to_string()).collect();
+        let marketplaces_str: Vec<String> =
+            alert.marketplaces.iter().map(|m| m.to_string()).collect();
         let marketplaces_joined = marketplaces_str.join(", ");
         let keywords_joined = alert.keywords.join(", ");
         let exclude_joined = alert.exclude_keywords.join(", ");
         let price_str = if alert.price_min.is_some() || alert.price_max.is_some() {
             Some(format!(
                 "${} — ${}",
-                alert.price_min.map(|p| format!("{:.0}", p)).unwrap_or_else(|| "any".into()),
-                alert.price_max.map(|p| format!("{:.0}", p)).unwrap_or_else(|| "any".into()),
+                alert
+                    .price_min
+                    .map(|p| format!("{:.0}", p))
+                    .unwrap_or_else(|| "any".into()),
+                alert
+                    .price_max
+                    .map(|p| format!("{:.0}", p))
+                    .unwrap_or_else(|| "any".into()),
             ))
         } else {
             None
@@ -262,22 +306,40 @@ impl AlertsTab {
         let max_str = alert.max_results.map(|m| m.to_string());
 
         let status_text = if alert.enabled { "Enabled" } else { "Disabled" };
-        let status_color = if alert.enabled { theme.enabled } else { theme.disabled };
+        let status_color = if alert.enabled {
+            theme.enabled
+        } else {
+            theme.disabled
+        };
 
         // Count rows for the detail table to calculate exact height.
         let mut row_count: u16 = 2; // Marketplaces + Keywords always present
-        if !alert.exclude_keywords.is_empty() { row_count += 1; }
-        if price_str.is_some() { row_count += 1; }
-        if loc_str.is_some() { row_count += 1; }
-        if cond_str.is_some() { row_count += 1; }
-        if alert.category.is_some() { row_count += 1; }
+        if !alert.exclude_keywords.is_empty() {
+            row_count += 1;
+        }
+        if price_str.is_some() {
+            row_count += 1;
+        }
+        if loc_str.is_some() {
+            row_count += 1;
+        }
+        if cond_str.is_some() {
+            row_count += 1;
+        }
+        if alert.category.is_some() {
+            row_count += 1;
+        }
         row_count += 2; // Interval + Notify always present
-        if max_str.is_some() { row_count += 1; }
+        if max_str.is_some() {
+            row_count += 1;
+        }
         row_count += 1; // Status always present
         let check_status = statuses.iter().find(|s| s.alert_id == alert.id);
         if let Some(cs) = check_status {
             row_count += 1; // Last check
-            if cs.error.is_some() { row_count += 1; } // Error row
+            if cs.error.is_some() {
+                row_count += 1;
+            } // Error row
         }
 
         // Layout: name (2), detail table (exact), divider (1), listings (remaining).
@@ -425,15 +487,28 @@ impl AlertsTab {
         let listings_area = chunks[3];
         if listings_area.height > 1 {
             let header_style = if self.listing_focus {
-                Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme.accent)
+                    .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(theme.fg_dim).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(theme.fg_dim)
+                    .add_modifier(Modifier::BOLD)
             };
             let header = Paragraph::new(Span::styled(
-                format!("Listings ({})  [Enter/l] browse  [Esc] back", alert_listings.len()),
+                format!(
+                    "Listings ({})  [Enter/l] browse  [Esc] back",
+                    alert_listings.len()
+                ),
                 header_style,
             ));
-            frame.render_widget(header, Rect { height: 1, ..listings_area });
+            frame.render_widget(
+                header,
+                Rect {
+                    height: 1,
+                    ..listings_area
+                },
+            );
 
             if listings_area.height > 2 {
                 let list_area = Rect {
@@ -448,7 +523,8 @@ impl AlertsTab {
                     .iter()
                     .enumerate()
                     .map(|(i, listing)| {
-                        let price_str = listing.price
+                        let price_str = listing
+                            .price
                             .map(|p| format!("${:.0} ", p))
                             .unwrap_or_default();
                         let is_seen = seen_ids.contains(&listing.id);
@@ -471,14 +547,13 @@ impl AlertsTab {
                     })
                     .collect();
 
-                let list = List::new(items)
-                    .highlight_style(Style::default().bg(theme.selected_bg));
+                let list = List::new(items).highlight_style(Style::default().bg(theme.selected_bg));
                 let mut listing_state = self.listing_state;
                 frame.render_stateful_widget(list, list_area, &mut listing_state);
 
                 if alert_listings.len() > list_area.height as usize {
-                    let mut scrollbar_state = ScrollbarState::new(alert_listings.len())
-                        .position(self.listing_selected);
+                    let mut scrollbar_state =
+                        ScrollbarState::new(alert_listings.len()).position(self.listing_selected);
                     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
                     frame.render_stateful_widget(scrollbar, list_area, &mut scrollbar_state);
                 }

@@ -1,21 +1,21 @@
 use crate::config::{AppConfig, load_config, save_config};
 use crate::daemon::results::{load_results, results_path};
+use crate::tui::dialogs::DialogResult;
 use crate::tui::dialogs::alert_form::AlertFormDialog;
 use crate::tui::dialogs::confirm::ConfirmDialog;
-use crate::tui::dialogs::DialogResult;
+use crate::tui::tabs::TabKind;
 use crate::tui::tabs::alerts::AlertsTab;
 use crate::tui::tabs::results::ResultsTab;
 use crate::tui::tabs::settings::SettingsTab;
-use crate::tui::tabs::TabKind;
 use crate::tui::theme::Theme;
 use crate::types::AlertResult;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
-use ratatui::Frame;
 use std::time::{Duration, Instant};
 
 /// Central application state for the TUI: owns the config, results, scheduler handle, and tab widgets.
@@ -85,8 +85,7 @@ impl App {
                     tokio::sync::mpsc::channel::<crate::scheduler::SchedulerEvent>(64);
                 let (cfg_tx, cfg_rx) = tokio::sync::watch::channel(config.clone());
                 let force_tx = event_tx.clone();
-                let scheduler =
-                    crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids);
+                let scheduler = crate::scheduler::Scheduler::new(event_tx, cfg_rx, existing_ids);
                 tokio::spawn(scheduler.run());
                 (Some(event_rx), Some(cfg_tx), Some(lock), Some(force_tx))
             } else {
@@ -147,180 +146,230 @@ impl App {
             terminal.draw(|f| self.render(f))?;
 
             if event::poll(Duration::from_millis(50))?
-                && let Event::Key(key) = event::read()? {
-                    if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
-                        self.should_quit = true;
-                        continue;
-                    }
+                && let Event::Key(key) = event::read()?
+            {
+                if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+                    self.should_quit = true;
+                    continue;
+                }
 
-                    // Dialog handling takes priority over all other input
-                    if self.active_dialog.is_some() {
-                        self.handle_dialog_key(key);
-                        continue;
-                    }
+                // Dialog handling takes priority over all other input
+                if self.active_dialog.is_some() {
+                    self.handle_dialog_key(key);
+                    continue;
+                }
 
-                    if key.code == KeyCode::Char('q') {
-                        self.should_quit = true;
-                    } else if key.code == KeyCode::Tab {
-                        self.active_tab = self.active_tab.next();
-                    } else if key.code == KeyCode::BackTab {
-                        self.active_tab = self.active_tab.prev();
-                    } else if key.code == KeyCode::Char('1') {
-                        self.active_tab = TabKind::Alerts;
-                    } else if key.code == KeyCode::Char('2') {
-                        self.active_tab = TabKind::Results;
-                    } else if key.code == KeyCode::Char('3') {
-                        self.active_tab = TabKind::Settings;
-                    } else if key.code == KeyCode::Char('4') {
-                        self.active_tab = TabKind::Logs;
-                    } else if key.code == KeyCode::Char('u') {
-                        if self.update_info.is_some() {
-                            let info = self.update_info.clone().unwrap();
-                            let notes = info.release_notes.clone().unwrap_or_default();
-                            let preview = if notes.len() > 200 { &notes[..200] } else { &notes };
-                            let dialog = ConfirmDialog::new(
-                                "Update snag".to_string(),
-                                format!("Update to {}?\n\n{}", info.latest_version, preview),
-                            );
-                            self.active_dialog = Some(ActiveDialog::Confirm(dialog, ConfirmAction::PerformUpdate));
-                        }
-                    } else {
-                        match self.active_tab {
-                            TabKind::Alerts => {
-                                if let Some(action) = self.alerts_tab.handle_key(key, &mut self.config) {
-                                    match action {
-                                        crate::tui::tabs::alerts::AlertsAction::ConfigChanged => {
-                                            let _ = save_config(&self.config, &self.config_path);
-                                            if let Some(ref tx) = self.config_tx {
-                                                let _ = tx.send(self.config.clone());
-                                            }
+                if key.code == KeyCode::Char('q') {
+                    self.should_quit = true;
+                } else if key.code == KeyCode::Tab {
+                    self.active_tab = self.active_tab.next();
+                } else if key.code == KeyCode::BackTab {
+                    self.active_tab = self.active_tab.prev();
+                } else if key.code == KeyCode::Char('1') {
+                    self.active_tab = TabKind::Alerts;
+                } else if key.code == KeyCode::Char('2') {
+                    self.active_tab = TabKind::Results;
+                } else if key.code == KeyCode::Char('3') {
+                    self.active_tab = TabKind::Settings;
+                } else if key.code == KeyCode::Char('4') {
+                    self.active_tab = TabKind::Logs;
+                } else if key.code == KeyCode::Char('u') {
+                    if self.update_info.is_some() {
+                        let info = self.update_info.clone().unwrap();
+                        let notes = info.release_notes.clone().unwrap_or_default();
+                        let preview = if notes.len() > 200 {
+                            &notes[..200]
+                        } else {
+                            &notes
+                        };
+                        let dialog = ConfirmDialog::new(
+                            "Update snag".to_string(),
+                            format!("Update to {}?\n\n{}", info.latest_version, preview),
+                        );
+                        self.active_dialog =
+                            Some(ActiveDialog::Confirm(dialog, ConfirmAction::PerformUpdate));
+                    }
+                } else {
+                    match self.active_tab {
+                        TabKind::Alerts => {
+                            if let Some(action) = self.alerts_tab.handle_key(key, &mut self.config)
+                            {
+                                match action {
+                                    crate::tui::tabs::alerts::AlertsAction::ConfigChanged => {
+                                        let _ = save_config(&self.config, &self.config_path);
+                                        if let Some(ref tx) = self.config_tx {
+                                            let _ = tx.send(self.config.clone());
                                         }
-                                        crate::tui::tabs::alerts::AlertsAction::CreateAlert => {
-                                            let mut dialog = AlertFormDialog::new();
-                                            dialog.set_default_location(self.config.settings.default_location.clone());
-                                            dialog.set_config_defaults(&self.config);
-                                            self.active_dialog = Some(ActiveDialog::AlertForm(dialog));
+                                    }
+                                    crate::tui::tabs::alerts::AlertsAction::CreateAlert => {
+                                        let mut dialog = AlertFormDialog::new();
+                                        dialog.set_default_location(
+                                            self.config.settings.default_location.clone(),
+                                        );
+                                        dialog.set_config_defaults(&self.config);
+                                        self.active_dialog = Some(ActiveDialog::AlertForm(dialog));
+                                    }
+                                    crate::tui::tabs::alerts::AlertsAction::EditAlert(idx) => {
+                                        if let Some(alert) = self.config.alerts.get(idx) {
+                                            let mut dialog = AlertFormDialog::from_alert(alert);
+                                            dialog.set_default_location(
+                                                self.config.settings.default_location.clone(),
+                                            );
+                                            self.active_dialog =
+                                                Some(ActiveDialog::AlertForm(dialog));
                                         }
-                                        crate::tui::tabs::alerts::AlertsAction::EditAlert(idx) => {
-                                            if let Some(alert) = self.config.alerts.get(idx) {
-                                                let mut dialog = AlertFormDialog::from_alert(alert);
-                                                dialog.set_default_location(self.config.settings.default_location.clone());
-                                                self.active_dialog = Some(ActiveDialog::AlertForm(dialog));
-                                            }
+                                    }
+                                    crate::tui::tabs::alerts::AlertsAction::DeleteAlert(idx) => {
+                                        if idx < self.config.alerts.len() {
+                                            let name = self.config.alerts[idx].name.clone();
+                                            let dialog = ConfirmDialog::new(
+                                                "Delete Alert".to_string(),
+                                                format!("Delete alert \"{}\"?", name),
+                                            );
+                                            self.active_dialog = Some(ActiveDialog::Confirm(
+                                                dialog,
+                                                ConfirmAction::DeleteAlert(idx),
+                                            ));
                                         }
-                                        crate::tui::tabs::alerts::AlertsAction::DeleteAlert(idx) => {
-                                            if idx < self.config.alerts.len() {
-                                                let name = self.config.alerts[idx].name.clone();
-                                                let dialog = ConfirmDialog::new(
-                                                    "Delete Alert".to_string(),
-                                                    format!("Delete alert \"{}\"?", name),
+                                    }
+                                    crate::tui::tabs::alerts::AlertsAction::ViewListing(
+                                        alert_idx,
+                                        listing_idx,
+                                    ) => {
+                                        if let Some(alert) = self.config.alerts.get(alert_idx) {
+                                            let alert_listings: Vec<&crate::types::Listing> = self
+                                                .results
+                                                .iter()
+                                                .filter(|r| r.alert_id == alert.id)
+                                                .flat_map(|r| r.listings.iter())
+                                                .collect();
+                                            if let Some(listing) = alert_listings.get(listing_idx) {
+                                                self.seen_ids.insert(listing.id.clone());
+                                                let _ = crate::daemon::results::save_seen(
+                                                    &self.seen_ids,
+                                                    &self.seen_path,
                                                 );
-                                                self.active_dialog = Some(ActiveDialog::Confirm(dialog, ConfirmAction::DeleteAlert(idx)));
-                                            }
-                                        }
-                                        crate::tui::tabs::alerts::AlertsAction::ViewListing(alert_idx, listing_idx) => {
-                                            if let Some(alert) = self.config.alerts.get(alert_idx) {
-                                                let alert_listings: Vec<&crate::types::Listing> = self.results
-                                                    .iter()
-                                                    .filter(|r| r.alert_id == alert.id)
-                                                    .flat_map(|r| r.listings.iter())
-                                                    .collect();
-                                                if let Some(listing) = alert_listings.get(listing_idx) {
-                                                    self.seen_ids.insert(listing.id.clone());
-                                                    let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
-                                                    let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
+                                                let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                         (*listing).clone(),
                                                         alert.name.clone(),
                                                     );
-                                                    self.active_dialog = Some(ActiveDialog::ListingDetail(dialog));
-                                                }
-                                            }
-                                        }
-                                        crate::tui::tabs::alerts::AlertsAction::ForceCheck(idx) => {
-                                            if let Some(alert) = self.config.alerts.get(idx).cloned() {
-                                                let existing_ids: std::collections::HashSet<String> = self.results
-                                                    .iter()
-                                                    .flat_map(|r| r.listings.iter().map(|l| l.id.clone()))
-                                                    .collect();
-                                                let default_loc = self.config.settings.default_location.clone();
-                                                let event_tx = self.force_event_tx.clone();
-                                                tokio::spawn(async move {
-                                                    let Some(event_tx) = event_tx else { return };
-                                                    log::info!(target: "snag::scheduler", "Force checking alert: '{}'", alert.name);
-                                                    match crate::scheduler::check_alert(
-                                                        &alert,
-                                                        &existing_ids,
-                                                        default_loc.as_deref(),
-                                                    ).await {
-                                                        Ok((status, new_listings)) => {
-                                                            let result = if new_listings.is_empty() {
-                                                                None
-                                                            } else {
-                                                                Some(crate::types::AlertResult {
-                                                                    alert_id: alert.id,
-                                                                    alert_name: alert.name.clone(),
-                                                                    listings: new_listings,
-                                                                    checked_at: chrono::Utc::now(),
-                                                                    seen: false,
-                                                                })
-                                                            };
-                                                            let _ = event_tx.send(crate::scheduler::SchedulerEvent::CheckComplete { status, result }).await;
-                                                        }
-                                                        Err(e) => {
-                                                            let _ = event_tx.send(crate::scheduler::SchedulerEvent::CheckError {
-                                                                alert_id: alert.id,
-                                                                error: format!("{e}"),
-                                                            }).await;
-                                                        }
-                                                    }
-                                                });
-                                            }
-                                        }
-                                        crate::tui::tabs::alerts::AlertsAction::ClearAlertResults(idx) => {
-                                            if let Some(alert) = self.config.alerts.get(idx) {
-                                                let alert_id = alert.id;
-                                                self.results.retain(|r| r.alert_id != alert_id);
-                                                let _ = crate::daemon::results::save_results(
-                                                    &self.results,
-                                                    &self.results_path,
-                                                );
-                                                log::info!(target: "snag::app", "Cleared results for alert '{}'", alert.name);
+                                                self.active_dialog =
+                                                    Some(ActiveDialog::ListingDetail(dialog));
                                             }
                                         }
                                     }
-                                }
-                            }
-                            TabKind::Results => {
-                                if let Some(action) = self.results_tab.handle_key(key, &mut self.results, &mut self.seen_ids) {
-                                    match action {
-                                        crate::tui::tabs::results::ResultsAction::OpenUrl(url) => {
-                                            let _ = open::that(&url);
-                                            let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
+                                    crate::tui::tabs::alerts::AlertsAction::ForceCheck(idx) => {
+                                        if let Some(alert) = self.config.alerts.get(idx).cloned() {
+                                            let existing_ids: std::collections::HashSet<String> =
+                                                self.results
+                                                    .iter()
+                                                    .flat_map(|r| {
+                                                        r.listings.iter().map(|l| l.id.clone())
+                                                    })
+                                                    .collect();
+                                            let default_loc =
+                                                self.config.settings.default_location.clone();
+                                            let event_tx = self.force_event_tx.clone();
+                                            tokio::spawn(async move {
+                                                let Some(event_tx) = event_tx else { return };
+                                                log::info!(target: "snag::scheduler", "Force checking alert: '{}'", alert.name);
+                                                match crate::scheduler::check_alert(
+                                                    &alert,
+                                                    &existing_ids,
+                                                    default_loc.as_deref(),
+                                                )
+                                                .await
+                                                {
+                                                    Ok((status, new_listings)) => {
+                                                        let result = if new_listings.is_empty() {
+                                                            None
+                                                        } else {
+                                                            Some(crate::types::AlertResult {
+                                                                alert_id: alert.id,
+                                                                alert_name: alert.name.clone(),
+                                                                listings: new_listings,
+                                                                checked_at: chrono::Utc::now(),
+                                                                seen: false,
+                                                            })
+                                                        };
+                                                        let _ = event_tx.send(crate::scheduler::SchedulerEvent::CheckComplete { status, result }).await;
+                                                    }
+                                                    Err(e) => {
+                                                        let _ = event_tx.send(crate::scheduler::SchedulerEvent::CheckError {
+                                                                alert_id: alert.id,
+                                                                error: format!("{e}"),
+                                                            }).await;
+                                                    }
+                                                }
+                                            });
                                         }
-                                        crate::tui::tabs::results::ResultsAction::ResultsChanged => {
+                                    }
+                                    crate::tui::tabs::alerts::AlertsAction::ClearAlertResults(
+                                        idx,
+                                    ) => {
+                                        if let Some(alert) = self.config.alerts.get(idx) {
+                                            let alert_id = alert.id;
+                                            self.results.retain(|r| r.alert_id != alert_id);
                                             let _ = crate::daemon::results::save_results(
                                                 &self.results,
                                                 &self.results_path,
                                             );
-                                        }
-                                        crate::tui::tabs::results::ResultsAction::SeenChanged => {
-                                            let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
-                                        }
-                                        crate::tui::tabs::results::ResultsAction::ViewListing(listing, alert_name) => {
-                                            self.seen_ids.insert(listing.id.clone());
-                                            let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
-                                            let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
-                                                *listing,
-                                                alert_name,
-                                            );
-                                            self.active_dialog = Some(ActiveDialog::ListingDetail(dialog));
+                                            log::info!(target: "snag::app", "Cleared results for alert '{}'", alert.name);
                                         }
                                     }
                                 }
                             }
-                            TabKind::Settings => {
-                                if let Some(action) = self.settings_tab.handle_key(key, &mut self.config) {
-                                    match action {
+                        }
+                        TabKind::Results => {
+                            if let Some(action) = self.results_tab.handle_key(
+                                key,
+                                &mut self.results,
+                                &mut self.seen_ids,
+                            ) {
+                                match action {
+                                    crate::tui::tabs::results::ResultsAction::OpenUrl(url) => {
+                                        let _ = open::that(&url);
+                                        let _ = crate::daemon::results::save_seen(
+                                            &self.seen_ids,
+                                            &self.seen_path,
+                                        );
+                                    }
+                                    crate::tui::tabs::results::ResultsAction::ResultsChanged => {
+                                        let _ = crate::daemon::results::save_results(
+                                            &self.results,
+                                            &self.results_path,
+                                        );
+                                    }
+                                    crate::tui::tabs::results::ResultsAction::SeenChanged => {
+                                        let _ = crate::daemon::results::save_seen(
+                                            &self.seen_ids,
+                                            &self.seen_path,
+                                        );
+                                    }
+                                    crate::tui::tabs::results::ResultsAction::ViewListing(
+                                        listing,
+                                        alert_name,
+                                    ) => {
+                                        self.seen_ids.insert(listing.id.clone());
+                                        let _ = crate::daemon::results::save_seen(
+                                            &self.seen_ids,
+                                            &self.seen_path,
+                                        );
+                                        let dialog = crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
+                                                *listing,
+                                                alert_name,
+                                            );
+                                        self.active_dialog =
+                                            Some(ActiveDialog::ListingDetail(dialog));
+                                    }
+                                }
+                            }
+                        }
+                        TabKind::Settings => {
+                            if let Some(action) =
+                                self.settings_tab.handle_key(key, &mut self.config)
+                            {
+                                match action {
                                         crate::tui::tabs::settings::SettingsAction::ConfigChanged => {
                                             let _ = save_config(&self.config, &self.config_path);
                                             if let Some(ref tx) = self.config_tx {
@@ -335,13 +384,13 @@ impl App {
                                             ));
                                         }
                                     }
-                                }
-                            }
-                            TabKind::Logs => {
-                                self.logs_tab.handle_key(key);
                             }
                         }
+                        TabKind::Logs => {
+                            self.logs_tab.handle_key(key);
+                        }
                     }
+                }
             }
 
             if let Some(ref mut rx) = self.scheduler_rx {
@@ -401,8 +450,7 @@ impl App {
                     .and_then(|m| m.modified())
                     .ok();
                 if status_mtime != self.last_status_mtime {
-                    if let Ok(new_statuses) =
-                        crate::daemon::results::load_status(&self.status_path)
+                    if let Ok(new_statuses) = crate::daemon::results::load_status(&self.status_path)
                     {
                         self.statuses = new_statuses;
                     }
@@ -423,12 +471,13 @@ impl App {
             }
 
             if let Some(ref mut rx) = self.update_rx
-                && let Ok(result) = rx.try_recv() {
-                    if let Some(info) = result {
-                        self.update_info = Some(info);
-                    }
-                    self.update_rx = None;
+                && let Ok(result) = rx.try_recv()
+            {
+                if let Some(info) = result {
+                    self.update_info = Some(info);
                 }
+                self.update_rx = None;
+            }
 
             if self.should_quit {
                 break;
@@ -447,7 +496,8 @@ impl App {
                     DialogResult::Continue => None,
                     DialogResult::Submit(alert) => {
                         // Add or update alert in config
-                        if let Some(pos) = self.config.alerts.iter().position(|a| a.id == alert.id) {
+                        if let Some(pos) = self.config.alerts.iter().position(|a| a.id == alert.id)
+                        {
                             self.config.alerts[pos] = alert;
                         } else {
                             self.config.alerts.push(alert);
@@ -476,10 +526,15 @@ impl App {
                     DialogResult::Continue => None,
                     DialogResult::Submit(action) => {
                         match action {
-                            crate::tui::dialogs::listing_detail::ListingDetailAction::OpenUrl(url) => {
+                            crate::tui::dialogs::listing_detail::ListingDetailAction::OpenUrl(
+                                url,
+                            ) => {
                                 let _ = open::that(&url);
                                 self.seen_ids.insert(listing_id);
-                                let _ = crate::daemon::results::save_seen(&self.seen_ids, &self.seen_path);
+                                let _ = crate::daemon::results::save_seen(
+                                    &self.seen_ids,
+                                    &self.seen_path,
+                                );
                             }
                         }
                         Some(DialogResult::<()>::Cancel)
@@ -491,24 +546,30 @@ impl App {
                 match r {
                     DialogResult::Cancel => Some(DialogResult::<()>::Cancel),
                     DialogResult::Continue => None,
-                    DialogResult::Submit(action) => {
-                        match action {
-                            crate::tui::dialogs::ebay_setup::EbaySetupAction::OpenRegistration => {
-                                let _ = open::that("https://developer.ebay.com/signin?tab=register");
-                                None
-                            }
-                            crate::tui::dialogs::ebay_setup::EbaySetupAction::SaveCredentials { client_id, client_secret } => {
-                                if let Err(e) = crate::credentials::store_credential("ebay_client_id", &client_id) {
-                                    log::error!(target: "snag::app", "Failed to store eBay client ID: {e}");
-                                }
-                                if let Err(e) = crate::credentials::store_credential("ebay_client_secret", &client_secret) {
-                                    log::error!(target: "snag::app", "Failed to store eBay client secret: {e}");
-                                }
-                                log::info!(target: "snag::app", "eBay API credentials saved to keyring");
-                                Some(DialogResult::<()>::Cancel)
-                            }
+                    DialogResult::Submit(action) => match action {
+                        crate::tui::dialogs::ebay_setup::EbaySetupAction::OpenRegistration => {
+                            let _ = open::that("https://developer.ebay.com/signin?tab=register");
+                            None
                         }
-                    }
+                        crate::tui::dialogs::ebay_setup::EbaySetupAction::SaveCredentials {
+                            client_id,
+                            client_secret,
+                        } => {
+                            if let Err(e) =
+                                crate::credentials::store_credential("ebay_client_id", &client_id)
+                            {
+                                log::error!(target: "snag::app", "Failed to store eBay client ID: {e}");
+                            }
+                            if let Err(e) = crate::credentials::store_credential(
+                                "ebay_client_secret",
+                                &client_secret,
+                            ) {
+                                log::error!(target: "snag::app", "Failed to store eBay client secret: {e}");
+                            }
+                            log::info!(target: "snag::app", "eBay API credentials saved to keyring");
+                            Some(DialogResult::<()>::Cancel)
+                        }
+                    },
                 }
             }
             None => None,
@@ -531,7 +592,9 @@ impl App {
                                     && self.alerts_tab.selected > 0
                                 {
                                     self.alerts_tab.selected -= 1;
-                                    self.alerts_tab.list_state.select(Some(self.alerts_tab.selected));
+                                    self.alerts_tab
+                                        .list_state
+                                        .select(Some(self.alerts_tab.selected));
                                 }
                             }
                         }
@@ -583,9 +646,26 @@ impl App {
         self.render_tabs(frame, chunks[0]);
 
         match self.active_tab {
-            TabKind::Alerts => self.alerts_tab.render(frame, chunks[1], &self.theme, &self.config, &self.statuses, &self.results, &self.seen_ids),
-            TabKind::Results => self.results_tab.render(frame, chunks[1], &self.theme, &self.results, &self.seen_ids),
-            TabKind::Settings => self.settings_tab.render(frame, chunks[1], &self.theme, &self.config),
+            TabKind::Alerts => self.alerts_tab.render(
+                frame,
+                chunks[1],
+                &self.theme,
+                &self.config,
+                &self.statuses,
+                &self.results,
+                &self.seen_ids,
+            ),
+            TabKind::Results => self.results_tab.render(
+                frame,
+                chunks[1],
+                &self.theme,
+                &self.results,
+                &self.seen_ids,
+            ),
+            TabKind::Settings => {
+                self.settings_tab
+                    .render(frame, chunks[1], &self.theme, &self.config)
+            }
             TabKind::Logs => self.logs_tab.render(frame, chunks[1]),
         }
 
@@ -616,7 +696,9 @@ impl App {
             );
             let bar = Paragraph::new(Line::from(Span::styled(
                 text,
-                Style::default().fg(self.theme.unread).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(self.theme.unread)
+                    .add_modifier(Modifier::BOLD),
             )))
             .style(Style::default().bg(self.theme.selected_bg));
             frame.render_widget(bar, area);
@@ -625,7 +707,12 @@ impl App {
 
     fn render_tabs(&self, frame: &mut Frame, area: Rect) {
         let mut spans = vec![
-            Span::styled(" snag ", Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " snag ",
+                Style::default()
+                    .fg(self.theme.accent)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled("  ", Style::default()),
         ];
 
@@ -635,11 +722,19 @@ impl App {
             }
             if *tab == self.active_tab {
                 spans.push(Span::styled("[ ", Style::default().fg(self.theme.border)));
-                spans.push(Span::styled(tab.title(), Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD)));
+                spans.push(Span::styled(
+                    tab.title(),
+                    Style::default()
+                        .fg(self.theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                ));
                 spans.push(Span::styled(" ]", Style::default().fg(self.theme.border)));
             } else {
                 spans.push(Span::styled("  ", Style::default()));
-                spans.push(Span::styled(tab.title(), Style::default().fg(self.theme.fg_dim)));
+                spans.push(Span::styled(
+                    tab.title(),
+                    Style::default().fg(self.theme.fg_dim),
+                ));
                 spans.push(Span::styled("  ", Style::default()));
             }
         }
@@ -654,29 +749,39 @@ impl App {
 
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
         let mut hints: Vec<(&str, &str)> = match self.active_tab {
-            TabKind::Alerts => if self.alerts_tab.listing_focus {
-                vec![
-                    (" Enter ", "Details"), (" c ", "Clear"), (" Esc ", "Back"),
-                    (" q ", "Quit"),
-                ]
-            } else {
-                vec![
-                    (" n ", "New"), (" e ", "Edit"), (" d ", "Delete"),
-                    (" f ", "Force"), (" l ", "Listings"), (" ␣ ", "Toggle"),
-                    (" q ", "Quit"),
-                ]
-            },
+            TabKind::Alerts => {
+                if self.alerts_tab.listing_focus {
+                    vec![
+                        (" Enter ", "Details"),
+                        (" c ", "Clear"),
+                        (" Esc ", "Back"),
+                        (" q ", "Quit"),
+                    ]
+                } else {
+                    vec![
+                        (" n ", "New"),
+                        (" e ", "Edit"),
+                        (" d ", "Delete"),
+                        (" f ", "Force"),
+                        (" l ", "Listings"),
+                        (" ␣ ", "Toggle"),
+                        (" q ", "Quit"),
+                    ]
+                }
+            }
             TabKind::Results => vec![
-                (" o ", "Open"), (" m ", "Mark read"), (" c ", "Clear"),
+                (" o ", "Open"),
+                (" m ", "Mark read"),
+                (" c ", "Clear"),
                 (" q ", "Quit"),
             ],
-            TabKind::Settings => vec![
-                (" Enter ", "Edit"), (" ↑↓ ", "Navigate"),
-                (" q ", "Quit"),
-            ],
+            TabKind::Settings => vec![(" Enter ", "Edit"), (" ↑↓ ", "Navigate"), (" q ", "Quit")],
             TabKind::Logs => vec![
-                (" ↑↓ ", "Scroll"), (" ←→ ", "Level"), (" Enter ", "Focus"),
-                (" Esc ", "Back"), (" q ", "Quit"),
+                (" ↑↓ ", "Scroll"),
+                (" ←→ ", "Level"),
+                (" Enter ", "Focus"),
+                (" Esc ", "Back"),
+                (" q ", "Quit"),
             ],
         };
 
@@ -696,10 +801,26 @@ impl App {
 
         for (i, (key, desc)) in hints.iter().enumerate() {
             if i > 0 {
-                spans.push(Span::styled(" │ ", Style::default().fg(self.theme.border).bg(self.theme.status_bar_bg)));
+                spans.push(Span::styled(
+                    " │ ",
+                    Style::default()
+                        .fg(self.theme.border)
+                        .bg(self.theme.status_bar_bg),
+                ));
             }
-            spans.push(Span::styled(*key, Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD).bg(self.theme.status_bar_bg)));
-            spans.push(Span::styled(*desc, Style::default().fg(self.theme.fg_dim).bg(self.theme.status_bar_bg)));
+            spans.push(Span::styled(
+                *key,
+                Style::default()
+                    .fg(self.theme.accent)
+                    .add_modifier(Modifier::BOLD)
+                    .bg(self.theme.status_bar_bg),
+            ));
+            spans.push(Span::styled(
+                *desc,
+                Style::default()
+                    .fg(self.theme.fg_dim)
+                    .bg(self.theme.status_bar_bg),
+            ));
         }
 
         let bar = Paragraph::new(Line::from(spans));

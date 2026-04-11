@@ -13,7 +13,12 @@ pub enum TabKind {
 
 impl TabKind {
     pub fn all() -> &'static [TabKind] {
-        &[TabKind::Alerts, TabKind::Results, TabKind::Settings, TabKind::Logs]
+        &[
+            TabKind::Alerts,
+            TabKind::Results,
+            TabKind::Settings,
+            TabKind::Logs,
+        ]
     }
 
     pub fn title(&self) -> &str {

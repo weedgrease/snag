@@ -115,7 +115,6 @@ pub enum FilterKind {
     Category,
 }
 
-
 /// Serde helper that serializes `Duration` as whole seconds so it round-trips cleanly through TOML/JSON.
 pub mod duration_secs {
     use serde::{Deserialize, Deserializer, Serializer};

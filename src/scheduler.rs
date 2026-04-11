@@ -5,12 +5,12 @@ use crate::types::{Alert, AlertResult, CheckStatus, Listing};
 use anyhow::Result;
 use chrono::Utc;
 use fs2::FileExt;
+use log::error;
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::time::Instant;
 use tokio::sync::{mpsc, watch};
-use log::error;
 use uuid::Uuid;
 
 /// Events emitted by the scheduler after each alert check.
@@ -50,7 +50,8 @@ pub fn try_acquire_scheduler_lock() -> Option<File> {
     }
 
     file.set_len(0).ok()?;
-    file.write_all(std::process::id().to_string().as_bytes()).ok()?;
+    file.write_all(std::process::id().to_string().as_bytes())
+        .ok()?;
     file.flush().ok()?;
     Some(file)
 }

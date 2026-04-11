@@ -1,11 +1,11 @@
 use super::DialogResult;
 use crate::tui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 pub struct ConfirmDialog {
     pub title: String,

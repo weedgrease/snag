@@ -5,11 +5,11 @@ use crate::scheduler::{self, Scheduler, SchedulerEvent};
 use crate::types::CheckStatus;
 use anyhow::{Context, Result};
 use chrono::Utc;
+use log::{error, info};
 use results::{load_results, load_status, results_path, save_results, save_status, status_path};
 use std::collections::HashSet;
 use std::path::Path;
 use tokio::sync::{mpsc, watch};
-use log::{error, info};
 
 pub async fn run() -> Result<()> {
     let log_path = config::data_dir().join("daemon.log");
@@ -140,7 +140,13 @@ pub async fn check_once_with_paths(
             continue;
         }
 
-        match scheduler::check_alert(alert, &existing_ids, config.settings.default_location.as_deref()).await {
+        match scheduler::check_alert(
+            alert,
+            &existing_ids,
+            config.settings.default_location.as_deref(),
+        )
+        .await
+        {
             Ok((status, new_listings)) => {
                 upsert_status(&mut statuses, status);
                 if !new_listings.is_empty() {

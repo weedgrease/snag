@@ -1,11 +1,11 @@
 use super::DialogResult;
 use crate::tui::theme::Theme;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 pub struct EbaySetupDialog {
     step: SetupStep,
@@ -34,9 +34,7 @@ impl EbaySetupDialog {
     pub fn handle_key(&mut self, key: KeyEvent) -> DialogResult<EbaySetupAction> {
         match self.step {
             SetupStep::Intro => match key.code {
-                KeyCode::Enter => {
-                    DialogResult::Submit(EbaySetupAction::OpenRegistration)
-                }
+                KeyCode::Enter => DialogResult::Submit(EbaySetupAction::OpenRegistration),
                 KeyCode::Char('s') => {
                     self.step = SetupStep::Credentials;
                     DialogResult::Continue
@@ -205,11 +203,17 @@ impl EbaySetupDialog {
             Style::default().fg(theme.fg_dim)
         };
         let id_value_style = if self.editing_field == 0 {
-            Style::default().fg(theme.fg).add_modifier(Modifier::UNDERLINED)
+            Style::default()
+                .fg(theme.fg)
+                .add_modifier(Modifier::UNDERLINED)
         } else {
             Style::default().fg(theme.fg)
         };
-        let id_cursor = if self.editing_field == 0 { "▸ " } else { "  " };
+        let id_cursor = if self.editing_field == 0 {
+            "▸ "
+        } else {
+            "  "
+        };
         let id_line = Line::from(vec![
             Span::styled(id_cursor, Style::default().fg(theme.accent)),
             Span::styled("Client ID:     ", id_label_style),
@@ -223,11 +227,17 @@ impl EbaySetupDialog {
             Style::default().fg(theme.fg_dim)
         };
         let secret_value_style = if self.editing_field == 1 {
-            Style::default().fg(theme.fg).add_modifier(Modifier::UNDERLINED)
+            Style::default()
+                .fg(theme.fg)
+                .add_modifier(Modifier::UNDERLINED)
         } else {
             Style::default().fg(theme.fg)
         };
-        let secret_cursor = if self.editing_field == 1 { "▸ " } else { "  " };
+        let secret_cursor = if self.editing_field == 1 {
+            "▸ "
+        } else {
+            "  "
+        };
         let masked = "*".repeat(self.client_secret.len());
         let secret_line = Line::from(vec![
             Span::styled(secret_cursor, Style::default().fg(theme.accent)),

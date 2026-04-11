@@ -2,11 +2,11 @@ use crate::config::AppConfig;
 use crate::tui::theme::Theme;
 use crate::types::NotifierKind;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 use std::time::Duration;
 
 const FIELD_CHECK_INTERVAL: usize = 0;
@@ -55,11 +55,7 @@ impl SettingsTab {
         }
     }
 
-    pub fn handle_key(
-        &mut self,
-        key: KeyEvent,
-        config: &mut AppConfig,
-    ) -> Option<SettingsAction> {
+    pub fn handle_key(&mut self, key: KeyEvent, config: &mut AppConfig) -> Option<SettingsAction> {
         if self.editing {
             match key.code {
                 KeyCode::Esc => {
@@ -100,9 +96,10 @@ impl SettingsTab {
                             return Some(SettingsAction::ConfigChanged);
                         }
                         FIELD_NOTIFICATION => {
-                            config.settings.default_notifier = match config.settings.default_notifier {
-                                NotifierKind::Terminal => NotifierKind::Terminal,
-                            };
+                            config.settings.default_notifier =
+                                match config.settings.default_notifier {
+                                    NotifierKind::Terminal => NotifierKind::Terminal,
+                                };
                             return Some(SettingsAction::ConfigChanged);
                         }
                         _ => {
@@ -145,11 +142,7 @@ impl SettingsTab {
                 .default_max_results
                 .map(|m| m.to_string())
                 .unwrap_or_default(),
-            FIELD_DEFAULT_LOCATION => config
-                .settings
-                .default_location
-                .clone()
-                .unwrap_or_default(),
+            FIELD_DEFAULT_LOCATION => config.settings.default_location.clone().unwrap_or_default(),
             _ => String::new(),
         }
     }
@@ -250,9 +243,7 @@ impl SettingsTab {
         let mut lines = vec![
             Line::from(Span::styled(
                 "Defaults",
-                Style::default()
-                    .fg(theme.fg)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
         ];
@@ -301,8 +292,16 @@ impl SettingsTab {
         let fb_status_color = theme.enabled;
 
         let ebay_configured = crate::credentials::ebay_credentials_configured();
-        let ebay_status = if ebay_configured { "Ready" } else { "Not configured" };
-        let ebay_status_color = if ebay_configured { theme.enabled } else { theme.disabled };
+        let ebay_status = if ebay_configured {
+            "Ready"
+        } else {
+            "Not configured"
+        };
+        let ebay_status_color = if ebay_configured {
+            theme.enabled
+        } else {
+            theme.disabled
+        };
 
         let marketplaces = [
             ("Facebook Marketplace", fb_status, fb_status_color),
@@ -312,9 +311,7 @@ impl SettingsTab {
         let mut lines = vec![
             Line::from(Span::styled(
                 "Marketplaces",
-                Style::default()
-                    .fg(theme.fg)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
         ];
@@ -341,7 +338,6 @@ impl SettingsTab {
         let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
         frame.render_widget(paragraph, area);
     }
-
 }
 
 pub enum SettingsAction {

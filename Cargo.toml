@@ -3,6 +3,11 @@ name = "snag"
 version = "0.1.0"
 edition = "2024"
 description = "CLI tool for marketplace listing alerts"
+license = "MIT"
+repository = "https://github.com/weedgrease/snag"
+readme = "README.md"
+keywords = ["marketplace", "alerts", "tui", "facebook", "ebay"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 log = "0.4"

@@ -21,7 +21,9 @@ pub fn load_results(path: &Path) -> Result<Vec<AlertResult>> {
     let mut file = match File::open(path) {
         Ok(f) => f,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
-        Err(e) => return Err(e).with_context(|| format!("failed to open results at {}", path.display())),
+        Err(e) => {
+            return Err(e).with_context(|| format!("failed to open results at {}", path.display()));
+        }
     };
 
     file.lock_shared()
@@ -45,7 +47,9 @@ pub fn load_status(path: &Path) -> Result<Vec<crate::types::CheckStatus>> {
     let mut file = match File::open(path) {
         Ok(f) => f,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
-        Err(e) => return Err(e).with_context(|| format!("failed to open status at {}", path.display())),
+        Err(e) => {
+            return Err(e).with_context(|| format!("failed to open status at {}", path.display()));
+        }
     };
 
     file.lock_shared()
@@ -98,8 +102,12 @@ pub fn seen_path() -> std::path::PathBuf {
 pub fn load_seen(path: &Path) -> Result<std::collections::HashSet<String>> {
     let mut file = match File::open(path) {
         Ok(f) => f,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(std::collections::HashSet::new()),
-        Err(e) => return Err(e).with_context(|| format!("failed to open seen at {}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(std::collections::HashSet::new());
+        }
+        Err(e) => {
+            return Err(e).with_context(|| format!("failed to open seen at {}", path.display()));
+        }
     };
 
     file.lock_shared()
@@ -113,8 +121,7 @@ pub fn load_seen(path: &Path) -> Result<std::collections::HashSet<String>> {
         return Ok(std::collections::HashSet::new());
     }
 
-    let seen: Vec<String> =
-        serde_json::from_str(&content).context("failed to parse seen")?;
+    let seen: Vec<String> = serde_json::from_str(&content).context("failed to parse seen")?;
 
     Ok(seen.into_iter().collect())
 }

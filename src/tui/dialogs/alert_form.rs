@@ -2,11 +2,11 @@ use super::DialogResult;
 use crate::tui::theme::Theme;
 use crate::types::*;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
-use ratatui::Frame;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -84,10 +84,14 @@ impl AlertFormDialog {
     }
 
     pub fn from_alert(alert: &Alert) -> Self {
-        let marketplaces: Vec<String> = alert.marketplaces.iter().map(|m| match m {
-            MarketplaceKind::Ebay => "ebay".into(),
-            MarketplaceKind::FacebookMarketplace => "facebook".into(),
-        }).collect();
+        let marketplaces: Vec<String> = alert
+            .marketplaces
+            .iter()
+            .map(|m| match m {
+                MarketplaceKind::Ebay => "ebay".into(),
+                MarketplaceKind::FacebookMarketplace => "facebook".into(),
+            })
+            .collect();
 
         Self {
             fields: vec![
@@ -95,19 +99,43 @@ impl AlertFormDialog {
                 FormField::new("Marketplaces", &marketplaces.join(", ")),
                 FormField::new("Keywords", &alert.keywords.join(", ")),
                 FormField::new("Exclude keywords", &alert.exclude_keywords.join(", ")),
-                FormField::new("Price min", &alert.price_min.map(|p| p.to_string()).unwrap_or_default()),
-                FormField::new("Price max", &alert.price_max.map(|p| p.to_string()).unwrap_or_default()),
+                FormField::new(
+                    "Price min",
+                    &alert.price_min.map(|p| p.to_string()).unwrap_or_default(),
+                ),
+                FormField::new(
+                    "Price max",
+                    &alert.price_max.map(|p| p.to_string()).unwrap_or_default(),
+                ),
                 FormField::new("Location", alert.location.as_deref().unwrap_or("")),
-                FormField::new("Radius (miles)", &alert.radius_miles.map(|r| r.to_string()).unwrap_or_default()),
-                FormField::new("Condition", alert.condition.map(|c| match c {
-                    Condition::New => "new",
-                    Condition::LikeNew => "like new",
-                    Condition::Used => "used",
-                    Condition::ForParts => "for parts",
-                }).unwrap_or("")),
+                FormField::new(
+                    "Radius (miles)",
+                    &alert
+                        .radius_miles
+                        .map(|r| r.to_string())
+                        .unwrap_or_default(),
+                ),
+                FormField::new(
+                    "Condition",
+                    alert
+                        .condition
+                        .map(|c| match c {
+                            Condition::New => "new",
+                            Condition::LikeNew => "like new",
+                            Condition::Used => "used",
+                            Condition::ForParts => "for parts",
+                        })
+                        .unwrap_or(""),
+                ),
                 FormField::new("Category", alert.category.as_deref().unwrap_or("")),
-                FormField::new("Interval (seconds)", &alert.check_interval.as_secs().to_string()),
-                FormField::new("Max results", &alert.max_results.map(|m| m.to_string()).unwrap_or_default()),
+                FormField::new(
+                    "Interval (seconds)",
+                    &alert.check_interval.as_secs().to_string(),
+                ),
+                FormField::new(
+                    "Max results",
+                    &alert.max_results.map(|m| m.to_string()).unwrap_or_default(),
+                ),
             ],
             selected_field: 0,
             editing: false,
@@ -196,11 +224,7 @@ impl AlertFormDialog {
             if v.is_empty() { None } else { Some(v) }
         };
 
-        let interval_secs = self.fields[10]
-            .value
-            .trim()
-            .parse::<u64>()
-            .unwrap_or(300);
+        let interval_secs = self.fields[10].value.trim().parse::<u64>().unwrap_or(300);
 
         let max_results = self.fields[11].value.trim().parse::<u32>().ok();
 
@@ -301,11 +325,8 @@ impl AlertFormDialog {
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);
 
-        let mut constraints: Vec<Constraint> = self
-            .fields
-            .iter()
-            .map(|_| Constraint::Length(1))
-            .collect();
+        let mut constraints: Vec<Constraint> =
+            self.fields.iter().map(|_| Constraint::Length(1)).collect();
         constraints.push(Constraint::Length(1));
         constraints.push(Constraint::Min(0));
 
@@ -350,12 +371,10 @@ impl AlertFormDialog {
             frame.render_widget(Paragraph::new(line), chunks[i]);
         }
 
-        let help_line = Line::from(vec![
-            Span::styled(
-                " [Enter] edit field  [s] save  [Esc] cancel",
-                Style::default().fg(theme.fg_dim),
-            ),
-        ]);
+        let help_line = Line::from(vec![Span::styled(
+            " [Enter] edit field  [s] save  [Esc] cancel",
+            Style::default().fg(theme.fg_dim),
+        )]);
         let help_idx = self.fields.len();
         if help_idx < chunks.len() {
             frame.render_widget(Paragraph::new(help_line), chunks[help_idx]);

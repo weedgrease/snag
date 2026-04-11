@@ -71,7 +71,10 @@ impl FacebookMarketplace {
         let status = response.status();
         log::debug!(target: "snag::facebook", "Location API status: {}", status);
 
-        let body_text = response.text().await.context("failed to read location response body")?;
+        let body_text = response
+            .text()
+            .await
+            .context("failed to read location response body")?;
         log::debug!(target: "snag::facebook", "Location API response ({} bytes): {}",
             body_text.len(),
             body_text.char_indices().nth(500).map(|(i, _)| &body_text[..i]).unwrap_or(&body_text)
@@ -117,28 +120,29 @@ impl FacebookMarketplace {
         Ok((lat, lng))
     }
 
-    fn build_search_variables(
-        &self,
-        alert: &Alert,
-        lat: f64,
-        lng: f64,
-    ) -> serde_json::Value {
+    fn build_search_variables(&self, alert: &Alert, lat: f64, lng: f64) -> serde_json::Value {
         let radius_km = alert
             .radius_miles
             .map(|m| (m as f64 * 1.60934) as i64)
             .unwrap_or(16);
 
         let price_lower = alert.price_min.map(|p| (p * 100.0) as i64).unwrap_or(0);
-        let price_upper = alert.price_max.map(|p| (p * 100.0) as i64).unwrap_or(214748364700);
+        let price_upper = alert
+            .price_max
+            .map(|p| (p * 100.0) as i64)
+            .unwrap_or(214748364700);
 
-        let condition: serde_json::Value = alert.condition.map(|c| {
-            serde_json::Value::String(match c {
-                Condition::New => "new".into(),
-                Condition::LikeNew => "used_like_new".into(),
-                Condition::Used => "used_good".into(),
-                Condition::ForParts => "used_fair".into(),
+        let condition: serde_json::Value = alert
+            .condition
+            .map(|c| {
+                serde_json::Value::String(match c {
+                    Condition::New => "new".into(),
+                    Condition::LikeNew => "used_like_new".into(),
+                    Condition::Used => "used_good".into(),
+                    Condition::ForParts => "used_fair".into(),
+                })
             })
-        }).unwrap_or(serde_json::Value::Null);
+            .unwrap_or(serde_json::Value::Null);
 
         let keywords = alert.keywords.join(" ");
         let count = alert.max_results.unwrap_or(24).min(100);
@@ -259,11 +263,7 @@ impl Marketplace for FacebookMarketplace {
         ]
     }
 
-    async fn search(
-        &self,
-        alert: &Alert,
-        default_location: Option<&str>,
-    ) -> Result<Vec<Listing>> {
+    async fn search(&self, alert: &Alert, default_location: Option<&str>) -> Result<Vec<Listing>> {
         if let Some(remaining) = rate_limit::is_rate_limited(MARKETPLACE_ID) {
             log::warn!(target: "snag::facebook", "Rate limited, waiting {}s before next request", remaining);
             anyhow::bail!("Rate limited, retry in {}s", remaining);
@@ -296,7 +296,10 @@ impl Marketplace for FacebookMarketplace {
         let status = response.status();
         log::debug!(target: "snag::facebook", "Search API status: {}", status);
 
-        let body_text = response.text().await.context("failed to read search response body")?;
+        let body_text = response
+            .text()
+            .await
+            .context("failed to read search response body")?;
         log::debug!(target: "snag::facebook", "Search API response ({} bytes): {}",
             body_text.len(),
             body_text.char_indices().nth(500).map(|(i, _)| &body_text[..i]).unwrap_or(&body_text)
@@ -306,7 +309,10 @@ impl Marketplace for FacebookMarketplace {
             && let Some(errors) = error_check.get("errors").and_then(|e| e.as_array())
             && let Some(first) = errors.first()
         {
-            let msg = first.get("message").and_then(|m| m.as_str()).unwrap_or("unknown");
+            let msg = first
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("unknown");
             let code = first.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
 
             if code == 1675004 {
@@ -322,8 +328,8 @@ impl Marketplace for FacebookMarketplace {
         // Successful request — clear rate limit
         rate_limit::clear_rate_limit(MARKETPLACE_ID);
 
-        let body: SearchResponse = serde_json::from_str(&body_text)
-            .context("failed to parse search response as JSON")?;
+        let body: SearchResponse =
+            serde_json::from_str(&body_text).context("failed to parse search response as JSON")?;
 
         let edges = body
             .data
@@ -335,11 +341,7 @@ impl Marketplace for FacebookMarketplace {
         log::debug!(target: "snag::facebook", "Search returned {} edges", edges.len());
 
         let now = Utc::now();
-        let keywords_lower: Vec<String> = alert
-            .keywords
-            .iter()
-            .map(|k| k.to_lowercase())
-            .collect();
+        let keywords_lower: Vec<String> = alert.keywords.iter().map(|k| k.to_lowercase()).collect();
         let exclude_lower: Vec<String> = alert
             .exclude_keywords
             .iter()
@@ -373,20 +375,17 @@ impl Marketplace for FacebookMarketplace {
                 continue;
             }
 
-            let price = node
-                .listing_price
-                .as_ref()
-                .and_then(|p| {
-                    p.amount
-                        .as_ref()
-                        .and_then(|a| a.parse::<f64>().ok())
-                        .or_else(|| {
-                            p.formatted_amount.as_ref().and_then(|f| {
-                                let cleaned = f.replace(['$', ',', ' '], "");
-                                cleaned.parse::<f64>().ok()
-                            })
+            let price = node.listing_price.as_ref().and_then(|p| {
+                p.amount
+                    .as_ref()
+                    .and_then(|a| a.parse::<f64>().ok())
+                    .or_else(|| {
+                        p.formatted_amount.as_ref().and_then(|f| {
+                            let cleaned = f.replace(['$', ',', ' '], "");
+                            cleaned.parse::<f64>().ok()
                         })
-                });
+                    })
+            });
 
             let currency = node
                 .listing_price

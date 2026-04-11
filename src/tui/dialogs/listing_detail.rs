@@ -2,11 +2,11 @@ use super::DialogResult;
 use crate::tui::theme::Theme;
 use crate::types::Listing;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
-use ratatui::Frame;
 
 pub struct ListingDetailDialog {
     pub listing: Listing,
@@ -24,7 +24,9 @@ impl ListingDetailDialog {
     pub fn handle_key(&self, key: KeyEvent) -> DialogResult<ListingDetailAction> {
         match key.code {
             KeyCode::Esc | KeyCode::Char('q') => DialogResult::Cancel,
-            KeyCode::Char('o') => DialogResult::Submit(ListingDetailAction::OpenUrl(self.listing.url.clone())),
+            KeyCode::Char('o') => {
+                DialogResult::Submit(ListingDetailAction::OpenUrl(self.listing.url.clone()))
+            }
             _ => DialogResult::Continue,
         }
     }
@@ -129,7 +131,10 @@ impl ListingDetailDialog {
 
         if let Some(ref desc) = self.listing.description {
             let desc_block = Block::default()
-                .title(Span::styled(" Description ", Style::default().fg(theme.fg_dim)))
+                .title(Span::styled(
+                    " Description ",
+                    Style::default().fg(theme.fg_dim),
+                ))
                 .borders(Borders::TOP)
                 .border_style(Style::default().fg(theme.border));
             let desc_inner = desc_block.inner(chunks[2]);

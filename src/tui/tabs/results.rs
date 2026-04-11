@@ -2,11 +2,14 @@ use crate::tui::theme::Theme;
 use crate::tui::utils::truncate_str;
 use crate::types::AlertResult;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar, ScrollbarOrientation, ScrollbarState, Table, Wrap};
-use ratatui::Frame;
+use ratatui::widgets::{
+    Block, BorderType, Borders, Cell, List, ListItem, ListState, Paragraph, Row, Scrollbar,
+    ScrollbarOrientation, ScrollbarState, Table, Wrap,
+};
 
 pub struct ResultsTab {
     pub selected: usize,
@@ -115,10 +118,14 @@ impl ResultsTab {
     ) {
         let flat = Self::flatten(results);
 
-        let max_title_len = flat.iter()
+        let max_title_len = flat
+            .iter()
             .map(|entry| {
                 let listing = &results[entry.result_idx].listings[entry.listing_idx];
-                let price_len = listing.price.map(|p| format!("${:.0} ", p).len()).unwrap_or(0);
+                let price_len = listing
+                    .price
+                    .map(|p| format!("${:.0} ", p).len())
+                    .unwrap_or(0);
                 listing.title.len() + price_len + 4
             })
             .max()
@@ -155,7 +162,8 @@ impl ResultsTab {
                 let indicator = if is_seen { "  " } else { "● " };
                 let indicator_color = if is_seen { theme.fg_dim } else { theme.unread };
 
-                let price_str = listing.price
+                let price_str = listing
+                    .price
                     .map(|p| format!("${:.0} ", p))
                     .unwrap_or_default();
 
@@ -194,10 +202,12 @@ impl ResultsTab {
         frame.render_stateful_widget(list, area, &mut state);
 
         if flat.len() > area.height.saturating_sub(2) as usize {
-            let mut scrollbar_state = ScrollbarState::new(flat.len())
-                .position(self.selected);
+            let mut scrollbar_state = ScrollbarState::new(flat.len()).position(self.selected);
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-            let scrollbar_area = area.inner(ratatui::layout::Margin { vertical: 1, horizontal: 0 });
+            let scrollbar_area = area.inner(ratatui::layout::Margin {
+                vertical: 1,
+                horizontal: 0,
+            });
             frame.render_stateful_widget(scrollbar, scrollbar_area, &mut scrollbar_state);
         }
     }
@@ -227,8 +237,8 @@ impl ResultsTab {
         let entry = match flat.get(self.selected) {
             Some(e) => e,
             None => {
-                let empty = Paragraph::new("No results yet.")
-                    .style(Style::default().fg(theme.fg_dim));
+                let empty =
+                    Paragraph::new("No results yet.").style(Style::default().fg(theme.fg_dim));
                 frame.render_widget(empty, inner);
                 return;
             }
@@ -236,10 +246,15 @@ impl ResultsTab {
 
         let listing = &results[entry.result_idx].listings[entry.listing_idx];
 
-        let price_str = listing.price.map(|p| format!("{}{:.2}", listing.currency, p));
+        let price_str = listing
+            .price
+            .map(|p| format!("{}{:.2}", listing.currency, p));
         let marketplace_str = listing.marketplace.to_string();
         let cond_str = listing.condition.as_ref().map(|c| c.to_string());
-        let posted_str = listing.posted_at.as_ref().map(|p| p.format("%Y-%m-%d %H:%M").to_string());
+        let posted_str = listing
+            .posted_at
+            .as_ref()
+            .map(|p| p.format("%Y-%m-%d %H:%M").to_string());
         let found_str = listing.found_at.format("%Y-%m-%d %H:%M").to_string();
 
         let has_description = listing.description.is_some();
@@ -319,7 +334,10 @@ impl ResultsTab {
 
         if let Some(ref desc) = listing.description {
             let desc_block = Block::default()
-                .title(Span::styled(" Description ", Style::default().fg(theme.fg_dim)))
+                .title(Span::styled(
+                    " Description ",
+                    Style::default().fg(theme.fg_dim),
+                ))
                 .borders(Borders::TOP)
                 .border_style(Style::default().fg(theme.border));
             let desc_inner = desc_block.inner(chunks[2]);

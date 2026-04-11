@@ -1,7 +1,7 @@
-use snag::types::*;
-use uuid::Uuid;
 use chrono::Utc;
+use snag::types::*;
 use std::time::Duration;
+use uuid::Uuid;
 
 #[test]
 fn alert_round_trips_through_toml() {
@@ -30,7 +30,10 @@ fn alert_round_trips_through_toml() {
     assert_eq!(deserialized.keywords, vec!["ps5"]);
     assert_eq!(deserialized.exclude_keywords, vec!["broken"]);
     assert_eq!(deserialized.price_min, Some(100.0));
-    assert_eq!(deserialized.marketplaces, vec![MarketplaceKind::FacebookMarketplace]);
+    assert_eq!(
+        deserialized.marketplaces,
+        vec![MarketplaceKind::FacebookMarketplace]
+    );
     assert_eq!(deserialized.condition, Some(Condition::Used));
     assert!(deserialized.enabled);
 }
@@ -58,7 +61,10 @@ fn listing_round_trips_through_json() {
     assert_eq!(deserialized.id, "ebay-123");
     assert_eq!(deserialized.title, "PS5 Console");
     assert_eq!(deserialized.price, Some(299.99));
-    assert_eq!(deserialized.marketplace, MarketplaceKind::FacebookMarketplace);
+    assert_eq!(
+        deserialized.marketplace,
+        MarketplaceKind::FacebookMarketplace
+    );
 }
 
 #[test]

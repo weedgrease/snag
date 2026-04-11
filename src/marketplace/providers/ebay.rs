@@ -57,8 +57,8 @@ impl EbayMarketplace {
             .context("eBay Client Secret not configured")?;
 
         use base64::Engine;
-        let credentials =
-            base64::engine::general_purpose::STANDARD.encode(format!("{client_id}:{client_secret}"));
+        let credentials = base64::engine::general_purpose::STANDARD
+            .encode(format!("{client_id}:{client_secret}"));
 
         log::debug!(target: "snag::ebay", "Requesting OAuth token");
 
@@ -194,9 +194,7 @@ impl Marketplace for EbayMarketplace {
 
     async fn search(&self, alert: &Alert, _default_location: Option<&str>) -> Result<Vec<Listing>> {
         if !credentials::ebay_credentials_configured() {
-            anyhow::bail!(
-                "eBay not configured — press [e] in Settings to set up API credentials"
-            );
+            anyhow::bail!("eBay not configured — press [e] in Settings to set up API credentials");
         }
 
         let token = self.get_access_token().await?;
@@ -255,7 +253,10 @@ impl Marketplace for EbayMarketplace {
             let title = item.title.unwrap_or_default();
 
             let title_lower = title.to_lowercase();
-            if exclude_lower.iter().any(|kw| title_lower.contains(kw.as_str())) {
+            if exclude_lower
+                .iter()
+                .any(|kw| title_lower.contains(kw.as_str()))
+            {
                 continue;
             }
 

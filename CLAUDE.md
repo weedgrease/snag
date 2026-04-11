@@ -63,6 +63,30 @@ tui/
 - `anyhow::Result` for error handling throughout
 - Clippy must pass with `-D warnings`
 - Tests in `tests/` directory (integration-level)
+- Commit messages follow conventional commits: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `style:`
+
+## Visual Changes
+
+Read `DESIGN.md` before making any visual or TUI changes. It documents the color palette, layout patterns, component conventions, and interaction model.
+
+## CI
+
+All PRs must pass CI. Run locally before pushing:
+
+```bash
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+```
+
+## Release Process
+
+1. Update version in `Cargo.toml`
+2. Commit: `chore: bump version to 0.X.Y`
+3. Tag: `git tag v0.X.Y`
+4. Push tag: `git push origin v0.X.Y`
+
+The `release.yml` workflow builds binaries for Linux (x86_64, aarch64) and macOS (x86_64, aarch64), then creates a GitHub release with artifacts.
 
 ## Adding a New Marketplace Provider
 

@@ -1,9 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
 use ratatui::widgets::{Block, BorderType, Borders};
-use ratatui::Frame;
 
 pub struct LogsTab {
     state: tui_logger::TuiWidgetState,
@@ -54,10 +54,12 @@ impl LogsTab {
         } else {
             match key.code {
                 KeyCode::Up | KeyCode::Char('k') | KeyCode::PageUp => {
-                    self.state.transition(tui_logger::TuiWidgetEvent::PrevPageKey);
+                    self.state
+                        .transition(tui_logger::TuiWidgetEvent::PrevPageKey);
                 }
                 KeyCode::Down | KeyCode::Char('j') | KeyCode::PageDown => {
-                    self.state.transition(tui_logger::TuiWidgetEvent::NextPageKey);
+                    self.state
+                        .transition(tui_logger::TuiWidgetEvent::NextPageKey);
                 }
                 KeyCode::Esc => {
                     if self.target_selected {
@@ -94,7 +96,9 @@ impl LogsTab {
             ));
 
         let hl_style = if self.selector_focused {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else if self.target_selected {
             Style::default().fg(Color::Cyan)
         } else {

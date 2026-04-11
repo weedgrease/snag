@@ -3,8 +3,7 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-const GITHUB_RELEASES_URL: &str =
-    "https://api.github.com/repos/weedgrease/snag/releases/latest";
+const GITHUB_RELEASES_URL: &str = "https://api.github.com/repos/weedgrease/snag/releases/latest";
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -243,9 +242,7 @@ fn set_executable(_path: &Path) -> Result<()> {
 pub async fn run_update() -> Result<()> {
     println!("Checking for updates...");
 
-    let info = check_for_update()
-        .await?
-        .context("already up to date")?;
+    let info = check_for_update().await?.context("already up to date")?;
 
     perform_update(&info).await
 }

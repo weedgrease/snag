@@ -16,7 +16,6 @@ const FIELD_CHECK_UPDATES: usize = 3;
 const FIELD_DEFAULT_LOCATION: usize = 4;
 const DEFAULTS_COUNT: usize = 5;
 
-const _MP_FACEBOOK: usize = 0;
 const MP_EBAY: usize = 1;
 const MARKETPLACE_COUNT: usize = 2;
 

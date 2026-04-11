@@ -159,7 +159,7 @@ impl App {
                     continue;
                 }
 
-                if key.code == KeyCode::Char('q') {
+                if key.code == KeyCode::Char('q') && !self.settings_tab.editing {
                     self.should_quit = true;
                 } else if key.code == KeyCode::Tab {
                     self.active_tab = self.active_tab.next();
@@ -177,11 +177,7 @@ impl App {
                     if self.update_info.is_some() {
                         let info = self.update_info.clone().unwrap();
                         let notes = info.release_notes.clone().unwrap_or_default();
-                        let preview = if notes.len() > 200 {
-                            &notes[..200]
-                        } else {
-                            &notes
-                        };
+                        let preview = crate::tui::utils::truncate_str(&notes, 200);
                         let dialog = ConfirmDialog::new(
                             "Update snag".to_string(),
                             format!("Update to {}?\n\n{}", info.latest_version, preview),
@@ -315,6 +311,12 @@ impl App {
                                                 &self.results_path,
                                             );
                                             log::info!(target: "snag::app", "Cleared results for alert '{}'", alert.name);
+                                            if self.results_tab.selected
+                                                >= self.results.len().max(1) - 1
+                                            {
+                                                self.results_tab.selected = 0;
+                                                self.results_tab.list_state.select(Some(0));
+                                            }
                                         }
                                     }
                                 }
@@ -398,7 +400,7 @@ impl App {
                     match event {
                         crate::scheduler::SchedulerEvent::CheckComplete { status, result } => {
                             log::debug!(target: "snag::app", "CheckComplete for alert {}: {} new results", status.alert_id, status.new_results);
-                            upsert_status(&mut self.statuses, status);
+                            crate::daemon::results::upsert_status(&mut self.statuses, status);
                             if let Some(alert_result) = result {
                                 self.results.push(alert_result);
                             }
@@ -417,7 +419,7 @@ impl App {
                         }
                         crate::scheduler::SchedulerEvent::CheckError { alert_id, error } => {
                             log::debug!(target: "snag::app", "CheckError for alert {}: {}", alert_id, error);
-                            upsert_status(
+                            crate::daemon::results::upsert_status(
                                 &mut self.statuses,
                                 crate::types::CheckStatus {
                                     alert_id,
@@ -444,6 +446,10 @@ impl App {
                         self.results = new_results;
                     }
                     self.last_results_mtime = results_mtime;
+                    if self.results_tab.selected >= self.results.len().max(1) - 1 {
+                        self.results_tab.selected = 0;
+                        self.results_tab.list_state.select(Some(0));
+                    }
                 }
 
                 let status_mtime = std::fs::metadata(&self.status_path)
@@ -596,6 +602,8 @@ impl App {
                                         .list_state
                                         .select(Some(self.alerts_tab.selected));
                                 }
+                                self.alerts_tab.listing_focus = false;
+                                self.alerts_tab.listing_selected = 0;
                             }
                         }
                         ConfirmAction::ClearResults => {
@@ -763,13 +771,14 @@ impl App {
                         (" e ", "Edit"),
                         (" d ", "Delete"),
                         (" f ", "Force"),
-                        (" l ", "Listings"),
+                        (" Enter/l ", "Listings"),
                         (" ␣ ", "Toggle"),
                         (" q ", "Quit"),
                     ]
                 }
             }
             TabKind::Results => vec![
+                (" Enter ", "Details"),
                 (" o ", "Open"),
                 (" m ", "Mark read"),
                 (" c ", "Clear"),
@@ -825,13 +834,5 @@ impl App {
 
         let bar = Paragraph::new(Line::from(spans));
         frame.render_widget(bar, area);
-    }
-}
-
-fn upsert_status(statuses: &mut Vec<crate::types::CheckStatus>, status: crate::types::CheckStatus) {
-    if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == status.alert_id) {
-        *existing = status;
-    } else {
-        statuses.push(status);
     }
 }

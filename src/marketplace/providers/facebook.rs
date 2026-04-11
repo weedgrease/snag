@@ -16,6 +16,12 @@ use crate::marketplace::rate_limit;
 const RATE_LIMIT_BACKOFF: Duration = Duration::from_secs(3600);
 const MARKETPLACE_ID: &str = "facebook";
 
+/// Maximum price value accepted by Facebook's GraphQL API (in cents).
+const FB_MAX_PRICE_CENTS: i64 = 214_748_364_700;
+
+/// Facebook error code for rate limiting.
+const FB_RATE_LIMIT_CODE: u64 = 1_675_004;
+
 pub struct FacebookMarketplace {
     client: reqwest::Client,
     location_cache: Mutex<HashMap<String, (f64, f64)>>,
@@ -31,6 +37,8 @@ impl FacebookMarketplace {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("failed to build HTTP client");
 
@@ -41,7 +49,12 @@ impl FacebookMarketplace {
     }
 
     async fn resolve_location(&self, query: &str) -> Result<(f64, f64)> {
-        if let Some(cached) = self.location_cache.lock().unwrap().get(query) {
+        if let Some(cached) = self
+            .location_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(query)
+        {
             log::debug!(target: "snag::facebook", "Location cache hit: {}", query);
             return Ok(*cached);
         }
@@ -112,7 +125,7 @@ impl FacebookMarketplace {
 
         self.location_cache
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(query.to_string(), (lat, lng));
 
         log::debug!(target: "snag::facebook", "Location resolved: {} -> ({}, {})", query, lat, lng);
@@ -130,7 +143,7 @@ impl FacebookMarketplace {
         let price_upper = alert
             .price_max
             .map(|p| (p * 100.0) as i64)
-            .unwrap_or(214748364700);
+            .unwrap_or(FB_MAX_PRICE_CENTS);
 
         let condition: serde_json::Value = alert
             .condition
@@ -315,7 +328,7 @@ impl Marketplace for FacebookMarketplace {
                 .unwrap_or("unknown");
             let code = first.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
 
-            if code == 1675004 {
+            if code == FB_RATE_LIMIT_CODE {
                 rate_limit::set_rate_limited(MARKETPLACE_ID, RATE_LIMIT_BACKOFF);
                 log::error!(target: "snag::facebook", "Rate limited — backing off for {}s", RATE_LIMIT_BACKOFF.as_secs());
             } else {

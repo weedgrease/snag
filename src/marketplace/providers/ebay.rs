@@ -32,6 +32,8 @@ impl EbayMarketplace {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .user_agent(format!("snag/{}", env!("CARGO_PKG_VERSION")))
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(10))
             .build()
             .expect("failed to build HTTP client");
 
@@ -43,7 +45,7 @@ impl EbayMarketplace {
 
     async fn get_access_token(&self) -> Result<String> {
         {
-            let cache = self.token_cache.lock().unwrap();
+            let cache = self.token_cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(ref cached) = *cache
                 && Instant::now() < cached.expires_at
             {
@@ -95,7 +97,7 @@ impl EbayMarketplace {
         let expires_at =
             Instant::now() + Duration::from_secs(token_resp.expires_in.saturating_sub(60));
 
-        let mut cache = self.token_cache.lock().unwrap();
+        let mut cache = self.token_cache.lock().unwrap_or_else(|e| e.into_inner());
         *cache = Some(TokenCache {
             access_token: token_resp.access_token.clone(),
             expires_at,

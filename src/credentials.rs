@@ -24,18 +24,6 @@ pub fn get_credential(key: &str) -> Result<Option<String>> {
     }
 }
 
-pub fn delete_credential(key: &str) -> Result<()> {
-    let entry = keyring::Entry::new(SERVICE_NAME, key).context("failed to create keyring entry")?;
-    match entry.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(anyhow::anyhow!(
-            "failed to delete credential from keyring: {}",
-            e
-        )),
-    }
-}
-
 /// Returns `true` only when both `ebay_client_id` and `ebay_client_secret` are present in the keyring.
 pub fn ebay_credentials_configured() -> bool {
     get_credential("ebay_client_id").ok().flatten().is_some()

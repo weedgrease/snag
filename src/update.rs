@@ -41,9 +41,18 @@ fn cache_path() -> PathBuf {
 }
 
 fn platform_asset_name() -> String {
-    let arch = std::env::consts::ARCH;
-    let os = std::env::consts::OS;
-    format!("snag-{}-{}", arch, os)
+    let target = if cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
+        "x86_64-unknown-linux-gnu"
+    } else if cfg!(target_os = "linux") && cfg!(target_arch = "aarch64") {
+        "aarch64-unknown-linux-gnu"
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "x86_64") {
+        "x86_64-apple-darwin"
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        "aarch64-apple-darwin"
+    } else {
+        return format!("snag-{}-{}", std::env::consts::ARCH, std::env::consts::OS);
+    };
+    format!("snag-{}.tar.gz", target)
 }
 
 fn parse_version(tag: &str) -> Option<Version> {
@@ -100,6 +109,7 @@ pub async fn check_for_update() -> Result<Option<UpdateInfo>> {
     // Cache is stale or missing — hit GitHub
     let client = reqwest::Client::builder()
         .user_agent(format!("snag/{}", CURRENT_VERSION))
+        .timeout(std::time::Duration::from_secs(30))
         .build()?;
 
     let release: GitHubRelease = client
@@ -185,6 +195,7 @@ pub async fn perform_update(info: &UpdateInfo) -> Result<()> {
 
     let client = reqwest::Client::builder()
         .user_agent(format!("snag/{}", CURRENT_VERSION))
+        .timeout(std::time::Duration::from_secs(30))
         .build()?;
 
     let bytes = client

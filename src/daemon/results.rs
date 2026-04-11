@@ -1,6 +1,9 @@
 //! File-based persistence for alert results, check statuses, and seen listing IDs.
 //! All reads and writes use advisory file locking (`fs2`) to coordinate between the TUI and any
 //! external processes reading the same data directory.
+// fs2::FileExt::lock_shared is a trait method from the `fs2` crate, not std::fs::File::lock_shared
+// (stable since 1.89). Clippy incorrectly flags these calls; suppress the false positive.
+#![allow(clippy::incompatible_msrv)]
 
 use crate::types::AlertResult;
 use anyhow::{Context, Result};
@@ -151,6 +154,18 @@ pub fn save_seen(seen: &std::collections::HashSet<String>, path: &Path) -> Resul
         .context("failed to write seen")?;
 
     Ok(())
+}
+
+/// Updates the status for an alert in-place, or appends if not found.
+pub fn upsert_status(
+    statuses: &mut Vec<crate::types::CheckStatus>,
+    status: crate::types::CheckStatus,
+) {
+    if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == status.alert_id) {
+        *existing = status;
+    } else {
+        statuses.push(status);
+    }
 }
 
 pub fn save_results(results: &[AlertResult], path: &Path) -> Result<()> {

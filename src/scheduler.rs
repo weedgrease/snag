@@ -56,13 +56,6 @@ pub fn try_acquire_scheduler_lock() -> Option<File> {
     Some(file)
 }
 
-pub fn read_lock_pid() -> Option<u32> {
-    let pid_path = crate::config::data_dir().join("daemon.pid");
-    std::fs::read_to_string(&pid_path)
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-}
-
 /// Searches all marketplaces for the alert, filters out previously seen listing IDs, and caps
 /// results at `alert.max_results`. Returns an error only if every marketplace failed.
 pub async fn check_alert(

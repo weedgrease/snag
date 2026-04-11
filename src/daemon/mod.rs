@@ -6,7 +6,9 @@ use crate::types::CheckStatus;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use log::{error, info};
-use results::{load_results, load_status, results_path, save_results, save_status, status_path};
+use results::{
+    load_results, load_status, results_path, save_results, save_status, status_path, upsert_status,
+};
 use std::collections::HashSet;
 use std::path::Path;
 use tokio::sync::{mpsc, watch};
@@ -181,12 +183,4 @@ pub async fn check_once_with_paths(
         error!("failed to save status: {e}");
     }
     Ok(())
-}
-
-fn upsert_status(statuses: &mut Vec<CheckStatus>, status: CheckStatus) {
-    if let Some(existing) = statuses.iter_mut().find(|s| s.alert_id == status.alert_id) {
-        *existing = status;
-    } else {
-        statuses.push(status);
-    }
 }

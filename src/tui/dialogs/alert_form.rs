@@ -471,7 +471,7 @@ impl AlertFormDialog {
 
                     let fb_line = Line::from(vec![
                         Span::styled(fb_cursor, Style::default().fg(theme.accent)),
-                        Span::styled(format!("  [{}] ", fb_check), Style::default().fg(theme.enabled)),
+                        Span::styled(format!("[{}] ", fb_check), Style::default().fg(theme.enabled)),
                         Span::styled("Facebook Marketplace", fb_style),
                     ]);
                     frame.render_widget(Paragraph::new(fb_line), chunks[chunk_idx]);
@@ -479,7 +479,7 @@ impl AlertFormDialog {
 
                     let ebay_line = Line::from(vec![
                         Span::styled(ebay_cursor, Style::default().fg(theme.accent)),
-                        Span::styled(format!("  [{}] ", ebay_check), Style::default().fg(theme.enabled)),
+                        Span::styled(format!("[{}] ", ebay_check), Style::default().fg(theme.enabled)),
                         Span::styled("eBay", ebay_style),
                     ]);
                     frame.render_widget(Paragraph::new(ebay_line), chunks[chunk_idx]);

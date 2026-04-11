@@ -158,6 +158,32 @@ impl AlertFormDialog {
         }
     }
 
+    fn cycle_marketplaces(&mut self) {
+        let current = &self.fields[1].value;
+        let next = match current.trim().to_lowercase().as_str() {
+            "facebook" => "ebay",
+            "ebay" => "facebook, ebay",
+            "facebook, ebay" => "facebook",
+            _ => "facebook",
+        };
+        self.fields[1].value = next.to_string();
+        self.fields[1].cursor = self.fields[1].value.len();
+    }
+
+    fn cycle_condition(&mut self) {
+        let current = &self.fields[8].value;
+        let next = match current.trim().to_lowercase().as_str() {
+            "" => "new",
+            "new" => "like new",
+            "like new" => "used",
+            "used" => "for parts",
+            "for parts" => "",
+            _ => "",
+        };
+        self.fields[8].value = next.to_string();
+        self.fields[8].cursor = self.fields[8].value.len();
+    }
+
     pub fn to_alert(&self) -> Option<Alert> {
         let name = self.fields[0].value.trim().to_string();
         if name.is_empty() {
@@ -282,10 +308,22 @@ impl AlertFormDialog {
                 DialogResult::Continue
             }
             KeyCode::Enter => {
-                self.editing = true;
-                let field = &mut self.fields[self.selected_field];
-                field.cursor = field.value.len();
-                DialogResult::Continue
+                match self.selected_field {
+                    1 => {
+                        self.cycle_marketplaces();
+                        DialogResult::Continue
+                    }
+                    8 => {
+                        self.cycle_condition();
+                        DialogResult::Continue
+                    }
+                    _ => {
+                        self.editing = true;
+                        let field = &mut self.fields[self.selected_field];
+                        field.cursor = field.value.len();
+                        DialogResult::Continue
+                    }
+                }
             }
             KeyCode::Char('s') => match self.to_alert() {
                 Some(alert) => DialogResult::Submit(alert),
@@ -360,23 +398,33 @@ impl AlertFormDialog {
             };
 
             let cursor = if is_selected { "▸ " } else { "  " };
+            let is_toggle = i == 1 || i == 8;
             let display_value = if field.value.is_empty() && !is_editing {
                 "—".to_string()
             } else {
                 field.value.clone()
             };
 
-            let line = Line::from(vec![
+            let mut spans = vec![
                 Span::styled(cursor, Style::default().fg(theme.accent)),
                 Span::styled(format!("{:<20}", field.label), label_style),
-                Span::styled(display_value, value_style),
-            ]);
+            ];
+
+            if is_toggle && is_selected {
+                spans.push(Span::styled("◀ ", Style::default().fg(theme.fg_dim)));
+                spans.push(Span::styled(display_value, value_style));
+                spans.push(Span::styled(" ▶", Style::default().fg(theme.fg_dim)));
+            } else {
+                spans.push(Span::styled(display_value, value_style));
+            }
+
+            let line = Line::from(spans);
 
             frame.render_widget(Paragraph::new(line), chunks[i]);
         }
 
         let help_line = Line::from(vec![Span::styled(
-            " [Enter] edit field  [s] save  [Esc] cancel",
+            " [Enter] edit/cycle  [s] save  [Esc] cancel",
             Style::default().fg(theme.fg_dim),
         )]);
         let help_idx = self.fields.len();

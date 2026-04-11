@@ -292,6 +292,16 @@ impl Marketplace for FacebookMarketplace {
             if body_text.len() > 500 { &body_text[..500] } else { &body_text }
         );
 
+        if let Ok(error_check) = serde_json::from_str::<serde_json::Value>(&body_text)
+            && let Some(errors) = error_check.get("errors").and_then(|e| e.as_array())
+            && let Some(first) = errors.first()
+        {
+            let msg = first.get("message").and_then(|m| m.as_str()).unwrap_or("unknown");
+            let code = first.get("code").and_then(|c| c.as_u64()).unwrap_or(0);
+            log::error!(target: "snag::facebook", "Facebook API error (code {}): {}", code, msg);
+            anyhow::bail!("Facebook API error (code {}): {}", code, msg);
+        }
+
         let body: SearchResponse = serde_json::from_str(&body_text)
             .context("failed to parse search response as JSON")?;
 

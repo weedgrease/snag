@@ -1,4 +1,5 @@
 pub mod providers;
+pub mod rate_limit;
 
 use crate::types::{Alert, FilterKind, Listing, MarketplaceKind};
 use anyhow::Result;

@@ -30,7 +30,9 @@ pub fn set_rate_limited(marketplace: &str, backoff: Duration) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&path, until.to_rfc3339());
+    if let Err(e) = std::fs::write(&path, until.to_rfc3339()) {
+        log::warn!(target: "snag::rate_limit", "failed to persist rate limit for {marketplace}: {e}");
+    }
 }
 
 pub fn clear_rate_limit(marketplace: &str) {

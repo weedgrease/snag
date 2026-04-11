@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::types::{Alert, NotifierKind};
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};

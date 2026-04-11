@@ -1,6 +1,6 @@
 use super::DialogResult;
 use crate::tui::theme::Theme;
-use crate::types::*;
+use crate::types::{Alert, Condition, MarketplaceKind, NotifierKind};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};

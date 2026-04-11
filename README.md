@@ -4,8 +4,6 @@ Marketplace listing alerts in your terminal.
 
 snag monitors Facebook Marketplace and eBay for new listings matching your search criteria and surfaces them in a keyboard-driven TUI. Run it interactively, as a background daemon, or as a one-shot cron job.
 
-<!-- TODO: Add screenshot of the Alerts tab with listings visible -->
-
 ## Features
 
 - **Multi-marketplace search** -- Facebook Marketplace and eBay from a single tool

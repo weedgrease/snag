@@ -16,7 +16,7 @@ use std::io;
 /// Initializes the terminal (raw mode, alternate screen), runs the TUI event loop, and restores
 /// the terminal on exit or panic.
 pub async fn run() -> Result<()> {
-    tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
+    let _ = tui_logger::init_logger(log::LevelFilter::Trace);
     tui_logger::set_default_level(log::LevelFilter::Trace);
 
     let original_hook = std::panic::take_hook();

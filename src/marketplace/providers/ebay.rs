@@ -166,7 +166,6 @@ struct ItemLocation {
     city: Option<String>,
     #[serde(rename = "stateOrProvince")]
     state_or_province: Option<String>,
-    country: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -290,8 +289,6 @@ impl Marketplace for EbayMarketplace {
                     if let Some(state) = loc.state_or_province {
                         parts.push(state);
                     }
-                    // country is available but omitted from the display string
-                    let _ = loc.country;
                     parts.join(", ")
                 })
                 .filter(|s| !s.is_empty());

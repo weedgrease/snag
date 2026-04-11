@@ -174,8 +174,7 @@ impl App {
                 } else if key.code == KeyCode::Char('4') {
                     self.active_tab = TabKind::Logs;
                 } else if key.code == KeyCode::Char('u') {
-                    if self.update_info.is_some() {
-                        let info = self.update_info.clone().unwrap();
+                    if let Some(info) = self.update_info.clone() {
                         let notes = info.release_notes.clone().unwrap_or_default();
                         let preview = crate::tui::utils::truncate_str(&notes, 200);
                         let dialog = ConfirmDialog::new(

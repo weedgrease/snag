@@ -354,6 +354,11 @@ impl Marketplace for FacebookMarketplace {
         log::debug!(target: "snag::facebook", "Search returned {} edges", edges.len());
 
         let now = Utc::now();
+        let keywords_lower: Vec<String> = alert
+            .keywords
+            .iter()
+            .map(|k| k.to_lowercase())
+            .collect();
         let exclude_lower: Vec<String> = alert
             .exclude_keywords
             .iter()
@@ -361,6 +366,7 @@ impl Marketplace for FacebookMarketplace {
             .collect();
 
         let mut listings = vec![];
+        let mut filtered_count = 0usize;
 
         for edge in edges {
             let node = match edge.node.and_then(|n| n.listing) {
@@ -376,6 +382,12 @@ impl Marketplace for FacebookMarketplace {
             let title = node.marketplace_listing_title.unwrap_or_default();
 
             let title_lower = title.to_lowercase();
+
+            if !keywords_lower.iter().any(|kw| title_lower.contains(kw)) {
+                filtered_count += 1;
+                continue;
+            }
+
             if exclude_lower.iter().any(|kw| title_lower.contains(kw)) {
                 continue;
             }
@@ -430,6 +442,9 @@ impl Marketplace for FacebookMarketplace {
             });
         }
 
+        if filtered_count > 0 {
+            log::info!(target: "snag::facebook", "Filtered {} listings not matching keywords", filtered_count);
+        }
         log::info!(target: "snag::facebook", "Facebook returned {} listings", listings.len());
 
         Ok(listings)

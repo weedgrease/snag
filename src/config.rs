@@ -9,6 +9,7 @@ fn default_true() -> bool {
     true
 }
 
+/// Top-level configuration: global settings shared across all alerts plus the alert list itself.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub settings: GlobalSettings,
@@ -59,6 +60,7 @@ pub fn config_path() -> PathBuf {
     config_dir().join("config.toml")
 }
 
+/// Loads the config from `path`. Returns [`AppConfig::default`] if the file does not exist.
 pub fn load_config(path: &Path) -> Result<AppConfig> {
     if !path.exists() {
         return Ok(AppConfig::default());
@@ -73,6 +75,7 @@ pub fn load_config(path: &Path) -> Result<AppConfig> {
     Ok(config)
 }
 
+/// Serializes `config` to TOML and writes it to `path`, creating parent directories as needed.
 pub fn save_config(config: &AppConfig, path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)

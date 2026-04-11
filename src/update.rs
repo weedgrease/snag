@@ -8,6 +8,7 @@ const GITHUB_RELEASES_URL: &str =
 
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Metadata for an available update: the release tag and the platform-specific download URL.
 #[derive(Debug, Clone)]
 pub struct UpdateInfo {
     pub latest_version: String,
@@ -37,6 +38,8 @@ fn parse_version(tag: &str) -> Option<Version> {
     Version::parse(trimmed).ok()
 }
 
+/// Queries the GitHub Releases API and returns `Some(UpdateInfo)` when a newer version exists
+/// with a matching platform asset, or `None` if already up to date or no asset is available.
 pub async fn check_for_update() -> Result<Option<UpdateInfo>> {
     let client = reqwest::Client::builder()
         .user_agent(format!("snag/{}", CURRENT_VERSION))
@@ -85,6 +88,8 @@ pub async fn check_for_update() -> Result<Option<UpdateInfo>> {
     }))
 }
 
+/// Downloads the new binary and atomically replaces the running executable, keeping a `.bak`
+/// copy for rollback if the rename fails.
 pub async fn perform_update(info: &UpdateInfo) -> Result<()> {
     let current_exe = std::env::current_exe().context("failed to determine current executable")?;
     let exe_dir = current_exe

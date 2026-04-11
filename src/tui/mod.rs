@@ -13,6 +13,8 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;
 
+/// Initializes the terminal (raw mode, alternate screen), runs the TUI event loop, and restores
+/// the terminal on exit or panic.
 pub async fn run() -> Result<()> {
     tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
     tui_logger::set_default_level(log::LevelFilter::Trace);

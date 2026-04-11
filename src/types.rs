@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use uuid::Uuid;
 
+/// A user-defined search alert with keywords, filters, and scheduling settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
     pub id: Uuid,
@@ -23,6 +24,7 @@ pub struct Alert {
     pub enabled: bool,
 }
 
+/// A single marketplace listing returned by a search.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Listing {
     pub id: String,
@@ -39,6 +41,7 @@ pub struct Listing {
     pub description: Option<String>,
 }
 
+/// The outcome of a single alert check: new listings found and whether the user has seen them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertResult {
     pub alert_id: Uuid,
@@ -48,6 +51,7 @@ pub struct AlertResult {
     pub seen: bool,
 }
 
+/// Lightweight summary of the most recent check for an alert, including any error message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckStatus {
     pub alert_id: Uuid,
@@ -112,6 +116,7 @@ pub enum FilterKind {
 }
 
 
+/// Serde helper that serializes `Duration` as whole seconds so it round-trips cleanly through TOML/JSON.
 pub mod duration_secs {
     use serde::{Deserialize, Deserializer, Serializer};
     use std::time::Duration;

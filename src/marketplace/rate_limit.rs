@@ -1,3 +1,5 @@
+//! Per-marketplace rate-limit state persisted to disk so it survives process restarts.
+
 use chrono::Utc;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -6,6 +8,8 @@ fn rate_limit_path(marketplace: &str) -> PathBuf {
     crate::config::data_dir().join(format!("rate_limit_{}", marketplace))
 }
 
+/// Returns `Some(seconds_remaining)` if the marketplace is still rate-limited, or `None` if it is clear.
+/// Automatically removes the backing file once the window has expired.
 pub fn is_rate_limited(marketplace: &str) -> Option<i64> {
     let path = rate_limit_path(marketplace);
     let content = std::fs::read_to_string(&path).ok()?;
@@ -19,6 +23,7 @@ pub fn is_rate_limited(marketplace: &str) -> Option<i64> {
     }
 }
 
+/// Records a rate-limit expiry timestamp to disk so subsequent runs respect the backoff window.
 pub fn set_rate_limited(marketplace: &str, backoff: Duration) {
     let until = Utc::now() + chrono::Duration::seconds(backoff.as_secs() as i64);
     let path = rate_limit_path(marketplace);

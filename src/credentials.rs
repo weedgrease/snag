@@ -1,3 +1,5 @@
+//! Keyring-backed credential storage for marketplace API keys.
+
 use anyhow::{Context, Result};
 
 const SERVICE_NAME: &str = "snag";
@@ -30,6 +32,7 @@ pub fn delete_credential(key: &str) -> Result<()> {
     }
 }
 
+/// Returns `true` only when both `ebay_client_id` and `ebay_client_secret` are present in the keyring.
 pub fn ebay_credentials_configured() -> bool {
     get_credential("ebay_client_id").ok().flatten().is_some()
         && get_credential("ebay_client_secret").ok().flatten().is_some()

@@ -1,3 +1,7 @@
+//! File-based persistence for alert results, check statuses, and seen listing IDs.
+//! All reads and writes use advisory file locking (`fs2`) to coordinate between the TUI and any
+//! external processes reading the same data directory.
+
 use crate::types::AlertResult;
 use anyhow::{Context, Result};
 use fs2::FileExt;

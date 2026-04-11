@@ -18,6 +18,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
 use ratatui::Frame;
 use std::time::{Duration, Instant};
 
+/// Central application state for the TUI: owns the config, results, scheduler handle, and tab widgets.
 pub struct App {
     pub active_tab: TabKind,
     pub config: AppConfig,
@@ -46,6 +47,7 @@ pub struct App {
     last_seen_mtime: Option<std::time::SystemTime>,
 }
 
+/// The dialog currently overlaid on the TUI; only one dialog is shown at a time.
 pub enum ActiveDialog {
     AlertForm(AlertFormDialog),
     Confirm(ConfirmDialog, ConfirmAction),

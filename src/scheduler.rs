@@ -13,6 +13,10 @@ use tokio::sync::{mpsc, watch};
 use log::error;
 use uuid::Uuid;
 
+/// Events emitted by the scheduler after each alert check.
+///
+/// `CheckComplete` is sent on every successful poll (result is `None` when no new listings were found).
+/// `CheckError` is sent when all marketplaces for the alert returned errors.
 #[derive(Debug)]
 pub enum SchedulerEvent {
     CheckComplete {
@@ -25,6 +29,8 @@ pub enum SchedulerEvent {
     },
 }
 
+/// Attempts to acquire an exclusive lock on the daemon PID file.
+/// Returns `Some(file)` with the lock held if successful, or `None` if another instance already holds it.
 pub fn try_acquire_scheduler_lock() -> Option<File> {
     let pid_path = crate::config::data_dir().join("daemon.pid");
     if let Some(parent) = pid_path.parent() {
@@ -56,6 +62,8 @@ pub fn read_lock_pid() -> Option<u32> {
         .and_then(|s| s.trim().parse().ok())
 }
 
+/// Searches all marketplaces for the alert, filters out previously seen listing IDs, and caps
+/// results at `alert.max_results`. Returns an error only if every marketplace failed.
 pub async fn check_alert(
     alert: &Alert,
     existing_ids: &HashSet<String>,
@@ -117,6 +125,9 @@ pub async fn check_alert(
     Ok((status, new_listings))
 }
 
+/// Background polling engine that drives alert checks on their configured intervals.
+/// Constructed with [`Scheduler::new`] and consumed by [`Scheduler::run`], which loops until the
+/// event channel is closed.
 pub struct Scheduler {
     event_tx: mpsc::Sender<SchedulerEvent>,
     config_rx: watch::Receiver<AppConfig>,

@@ -181,6 +181,7 @@ impl App {
                                         crate::tui::tabs::alerts::AlertsAction::CreateAlert => {
                                             let mut dialog = AlertFormDialog::new();
                                             dialog.set_default_location(self.config.settings.default_location.clone());
+                                            dialog.set_config_defaults(&self.config);
                                             self.active_dialog = Some(ActiveDialog::AlertForm(dialog));
                                         }
                                         crate::tui::tabs::alerts::AlertsAction::EditAlert(idx) => {

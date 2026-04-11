@@ -117,6 +117,15 @@ impl AlertFormDialog {
         self.default_location = loc;
     }
 
+    pub fn set_config_defaults(&mut self, config: &crate::config::AppConfig) {
+        self.fields[10].value = config.settings.default_check_interval.as_secs().to_string();
+        self.fields[10].cursor = self.fields[10].value.len();
+        if let Some(max) = config.settings.default_max_results {
+            self.fields[11].value = max.to_string();
+            self.fields[11].cursor = self.fields[11].value.len();
+        }
+    }
+
     pub fn to_alert(&self) -> Option<Alert> {
         let name = self.fields[0].value.trim().to_string();
         if name.is_empty() {

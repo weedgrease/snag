@@ -11,8 +11,8 @@ use std::time::{Duration, Instant};
 const GRAPHQL_URL: &str = "https://www.facebook.com/api/graphql/";
 const LOCATION_DOC_ID: &str = "5585904654783609";
 const SEARCH_DOC_ID: &str = "7111939778879383";
-const INITIAL_BACKOFF: Duration = Duration::from_secs(30);
-const MAX_BACKOFF: Duration = Duration::from_secs(300);
+const INITIAL_BACKOFF: Duration = Duration::from_secs(3600);
+const MAX_BACKOFF: Duration = Duration::from_secs(7200);
 
 use std::sync::LazyLock;
 

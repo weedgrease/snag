@@ -26,7 +26,6 @@ pub struct SettingsTab {
     pub selected: usize,
     pub editing: bool,
     pub edit_buffer: String,
-    pub update_banner: Option<String>,
 }
 
 impl Default for SettingsTab {
@@ -41,7 +40,6 @@ impl SettingsTab {
             selected: 0,
             editing: false,
             edit_buffer: String::new(),
-            update_banner: None,
         }
     }
 
@@ -200,9 +198,6 @@ impl SettingsTab {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let has_banner = self.update_banner.is_some();
-        let banner_height = if has_banner { 3 } else { 0 };
-
         let defaults_height = 4 + DEFAULTS_COUNT as u16;
         let marketplaces_height = 4 + MARKETPLACE_COUNT as u16;
 
@@ -211,16 +206,12 @@ impl SettingsTab {
             .constraints([
                 Constraint::Length(defaults_height),
                 Constraint::Length(marketplaces_height),
-                Constraint::Length(banner_height),
                 Constraint::Min(0),
             ])
             .split(inner);
 
         self.render_defaults_section(frame, chunks[0], theme, config);
         self.render_marketplaces_section(frame, chunks[1], theme);
-        if let Some(ref banner) = self.update_banner {
-            self.render_update_banner(frame, chunks[2], theme, banner);
-        }
     }
 
     fn render_defaults_section(
@@ -351,24 +342,6 @@ impl SettingsTab {
         frame.render_widget(paragraph, area);
     }
 
-    fn render_update_banner(
-        &self,
-        frame: &mut Frame,
-        area: Rect,
-        theme: &Theme,
-        banner: &str,
-    ) {
-        let lines = vec![
-            Line::from(""),
-            Line::from(Span::styled(
-                format!("  {}", banner),
-                Style::default().fg(theme.unread),
-            )),
-        ];
-
-        let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
-        frame.render_widget(paragraph, area);
-    }
 }
 
 pub enum SettingsAction {

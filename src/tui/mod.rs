@@ -35,10 +35,18 @@ pub async fn run() -> Result<()> {
 
     let mut app = app::App::new()?;
     let result = app.run(&mut terminal);
+    let pending_update = app.pending_update.clone();
 
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
+
+    if let Some(info) = pending_update {
+        println!("Updating snag to {}...", info.latest_version);
+        crate::update::perform_update(&info).await?;
+        println!("Restart snag to use the new version.");
+        return Ok(());
+    }
 
     result
 }

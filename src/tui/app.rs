@@ -35,6 +35,7 @@ pub struct App {
     pub should_quit: bool,
     pub active_dialog: Option<ActiveDialog>,
     pub update_info: Option<crate::update::UpdateInfo>,
+    pub pending_update: Option<crate::update::UpdateInfo>,
     update_rx: Option<tokio::sync::oneshot::Receiver<Option<crate::update::UpdateInfo>>>,
     scheduler_rx: Option<tokio::sync::mpsc::Receiver<crate::scheduler::SchedulerEvent>>,
     force_event_tx: Option<tokio::sync::mpsc::Sender<crate::scheduler::SchedulerEvent>>,
@@ -58,6 +59,7 @@ pub enum ActiveDialog {
 pub enum ConfirmAction {
     DeleteAlert(usize),
     ClearResults,
+    PerformUpdate,
 }
 
 impl App {
@@ -120,6 +122,7 @@ impl App {
             should_quit: false,
             active_dialog: None,
             update_info: None,
+            pending_update: None,
             update_rx,
             scheduler_rx,
             force_event_tx,
@@ -170,6 +173,17 @@ impl App {
                         self.active_tab = TabKind::Settings;
                     } else if key.code == KeyCode::Char('4') {
                         self.active_tab = TabKind::Logs;
+                    } else if key.code == KeyCode::Char('u') {
+                        if self.update_info.is_some() {
+                            let info = self.update_info.clone().unwrap();
+                            let notes = info.release_notes.clone().unwrap_or_default();
+                            let preview = if notes.len() > 200 { &notes[..200] } else { &notes };
+                            let dialog = ConfirmDialog::new(
+                                "Update snag".to_string(),
+                                format!("Update to {}?\n\n{}", info.latest_version, preview),
+                            );
+                            self.active_dialog = Some(ActiveDialog::Confirm(dialog, ConfirmAction::PerformUpdate));
+                        }
                     } else {
                         match self.active_tab {
                             TabKind::Alerts => {
@@ -411,8 +425,6 @@ impl App {
             if let Some(ref mut rx) = self.update_rx
                 && let Ok(result) = rx.try_recv() {
                     if let Some(info) = result {
-                        self.settings_tab.update_banner =
-                            Some(format!("Update available: {} — run `snag update`", info.latest_version));
                         self.update_info = Some(info);
                     }
                     self.update_rx = None;
@@ -530,6 +542,10 @@ impl App {
                                 &self.results_path,
                             );
                         }
+                        ConfirmAction::PerformUpdate => {
+                            self.pending_update = self.update_info.clone();
+                            self.should_quit = true;
+                        }
                     }
                 }
             }
@@ -541,14 +557,28 @@ impl App {
     }
 
     fn render(&mut self, frame: &mut Frame) {
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(0),
-                Constraint::Length(1),
-            ])
-            .split(frame.area());
+        let has_update = self.update_info.is_some();
+
+        let chunks = if has_update {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Min(0),
+                    Constraint::Length(1),
+                    Constraint::Length(1),
+                ])
+                .split(frame.area())
+        } else {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(3),
+                    Constraint::Min(0),
+                    Constraint::Length(1),
+                ])
+                .split(frame.area())
+        };
 
         self.render_tabs(frame, chunks[0]);
 
@@ -559,7 +589,12 @@ impl App {
             TabKind::Logs => self.logs_tab.render(frame, chunks[1]),
         }
 
-        self.render_status_bar(frame, chunks[2]);
+        if has_update {
+            self.render_update_bar(frame, chunks[2]);
+            self.render_status_bar(frame, chunks[3]);
+        } else {
+            self.render_status_bar(frame, chunks[2]);
+        }
 
         // Draw dialogs on top of normal content
         if let Some(dialog) = &self.active_dialog {
@@ -569,6 +604,22 @@ impl App {
                 ActiveDialog::ListingDetail(d) => d.render(frame, frame.area(), &self.theme),
                 ActiveDialog::EbaySetup(d) => d.render(frame, frame.area(), &self.theme),
             }
+        }
+    }
+
+    fn render_update_bar(&self, frame: &mut Frame, area: Rect) {
+        if let Some(ref info) = self.update_info {
+            let text = format!(
+                " Update available: {} → {}  Press u to update",
+                env!("CARGO_PKG_VERSION"),
+                info.latest_version
+            );
+            let bar = Paragraph::new(Line::from(Span::styled(
+                text,
+                Style::default().fg(self.theme.unread).add_modifier(Modifier::BOLD),
+            )))
+            .style(Style::default().bg(self.theme.selected_bg));
+            frame.render_widget(bar, area);
         }
     }
 
@@ -602,7 +653,7 @@ impl App {
     }
 
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
-        let hints: Vec<(&str, &str)> = match self.active_tab {
+        let mut hints: Vec<(&str, &str)> = match self.active_tab {
             TabKind::Alerts => vec![
                 (" n ", "New"), (" e ", "Edit"), (" d ", "Delete"),
                 (" f ", "Force"), (" l ", "Listings"), (" ␣ ", "Toggle"),
@@ -621,6 +672,10 @@ impl App {
                 (" Esc ", "Back"), (" q ", "Quit"),
             ],
         };
+
+        if self.update_info.is_some() {
+            hints.push((" u ", "Update"));
+        }
 
         let mut spans = vec![
             Span::styled(

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use semver::Version;
-use serde::Deserialize;
-use std::path::Path;
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 const GITHUB_RELEASES_URL: &str =
     "https://api.github.com/repos/weedgrease/snag/releases/latest";
@@ -13,18 +13,32 @@ const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct UpdateInfo {
     pub latest_version: String,
     pub download_url: String,
+    pub release_notes: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct GitHubRelease {
     tag_name: String,
     assets: Vec<GitHubAsset>,
+    body: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UpdateCache {
+    checked_at: chrono::DateTime<chrono::Utc>,
+    latest_version: Option<String>,
+    download_url: Option<String>,
+    release_notes: Option<String>,
+}
+
+fn cache_path() -> PathBuf {
+    crate::config::data_dir().join("update_cache.json")
 }
 
 fn platform_asset_name() -> String {
@@ -38,9 +52,53 @@ fn parse_version(tag: &str) -> Option<Version> {
     Version::parse(trimmed).ok()
 }
 
+fn load_cache() -> Option<UpdateCache> {
+    let path = cache_path();
+    let content = std::fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+fn write_cache(cache: &UpdateCache) {
+    let path = cache_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string(cache) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
 /// Queries the GitHub Releases API and returns `Some(UpdateInfo)` when a newer version exists
 /// with a matching platform asset, or `None` if already up to date or no asset is available.
+/// Results are cached for 24 hours to avoid hitting the API on every launch.
 pub async fn check_for_update() -> Result<Option<UpdateInfo>> {
+    let current = match Version::parse(CURRENT_VERSION) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+
+    // Check cache first
+    if let Some(cache) = load_cache() {
+        let age = chrono::Utc::now().signed_duration_since(cache.checked_at);
+        if age < chrono::Duration::hours(24) {
+            // Cache is fresh: return cached result if a newer version was recorded
+            if let Some(ref cached_version) = cache.latest_version
+                && let Some(latest) = parse_version(cached_version)
+                && latest > current
+                && let Some(url) = cache.download_url.clone()
+            {
+                return Ok(Some(UpdateInfo {
+                    latest_version: cached_version.clone(),
+                    download_url: url,
+                    release_notes: cache.release_notes.clone(),
+                }));
+            }
+            // Cache is fresh but no update available
+            return Ok(None);
+        }
+    }
+
+    // Cache is stale or missing — hit GitHub
     let client = reqwest::Client::builder()
         .user_agent(format!("snag/{}", CURRENT_VERSION))
         .build()?;
@@ -56,17 +114,27 @@ pub async fn check_for_update() -> Result<Option<UpdateInfo>> {
         .await
         .context("failed to parse release JSON")?;
 
-    let current = match Version::parse(CURRENT_VERSION) {
-        Ok(v) => v,
-        Err(_) => return Ok(None),
-    };
-
     let latest = match parse_version(&release.tag_name) {
         Some(v) => v,
-        None => return Ok(None),
+        None => {
+            // Write a cache so we don't hammer GitHub on parse failures
+            write_cache(&UpdateCache {
+                checked_at: chrono::Utc::now(),
+                latest_version: None,
+                download_url: None,
+                release_notes: None,
+            });
+            return Ok(None);
+        }
     };
 
     if latest <= current {
+        write_cache(&UpdateCache {
+            checked_at: chrono::Utc::now(),
+            latest_version: None,
+            download_url: None,
+            release_notes: None,
+        });
         return Ok(None);
     }
 
@@ -79,12 +147,30 @@ pub async fn check_for_update() -> Result<Option<UpdateInfo>> {
 
     let download_url = match download_url {
         Some(url) => url,
-        None => return Ok(None),
+        None => {
+            write_cache(&UpdateCache {
+                checked_at: chrono::Utc::now(),
+                latest_version: None,
+                download_url: None,
+                release_notes: None,
+            });
+            return Ok(None);
+        }
     };
+
+    let release_notes = release.body.clone();
+
+    write_cache(&UpdateCache {
+        checked_at: chrono::Utc::now(),
+        latest_version: Some(release.tag_name.clone()),
+        download_url: Some(download_url.clone()),
+        release_notes: release_notes.clone(),
+    });
 
     Ok(Some(UpdateInfo {
         latest_version: release.tag_name,
         download_url,
+        release_notes,
     }))
 }
 

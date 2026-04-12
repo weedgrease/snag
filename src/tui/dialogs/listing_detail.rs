@@ -147,15 +147,12 @@ impl ListingDetailDialog {
         }
         detail_rows += 1; // alert row
 
+        let image_rows: u16 = if has_image { 14 } else { 0 };
         let desc_rows: u16 = if has_desc { 8 } else { 0 };
-        let fixed_rows: u16 = 2 + detail_rows + desc_rows + 2 + 1; // title + table + desc + url + hint
+        let fixed_rows: u16 = 2 + detail_rows + desc_rows + 2 + 1 + image_rows;
 
         let dialog_width = area.width.saturating_sub(6).min(100);
-        let dialog_height = if has_image {
-            area.height.saturating_sub(2) // full height when image present
-        } else {
-            (fixed_rows + 2).min(area.height.saturating_sub(2))
-        };
+        let dialog_height = (fixed_rows + 2).min(area.height.saturating_sub(2));
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
         let y = area.y + (area.height.saturating_sub(dialog_height)) / 2;
@@ -181,13 +178,12 @@ impl ListingDetailDialog {
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);
 
-        // Layout: fixed sections get exact rows, image gets remaining space
         let mut constraints = vec![];
         if has_image {
-            constraints.push(Constraint::Min(4)); // image fills remaining space
+            constraints.push(Constraint::Length(image_rows));
         }
         constraints.push(Constraint::Length(2)); // title
-        constraints.push(Constraint::Length(detail_rows)); // details (exact)
+        constraints.push(Constraint::Length(detail_rows)); // details
         if has_desc {
             constraints.push(Constraint::Length(desc_rows));
         }

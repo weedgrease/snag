@@ -241,6 +241,16 @@ impl ListingDetailDialog {
                 );
             } else if let Some(desc) = fetched_desc {
                 let cleaned = strip_html(desc);
+
+                let wrap_width = desc_inner.width.max(1) as usize;
+                let wrapped_lines: u16 = cleaned
+                    .lines()
+                    .map(|line| ((line.len() as u16) / (wrap_width as u16)).max(1))
+                    .sum();
+
+                let max_scroll = wrapped_lines.saturating_sub(desc_inner.height);
+                self.desc_scroll = self.desc_scroll.min(max_scroll);
+
                 frame.render_widget(
                     Paragraph::new(cleaned.as_str())
                         .style(Style::default().fg(theme.fg))
@@ -249,18 +259,15 @@ impl ListingDetailDialog {
                     desc_inner,
                 );
 
-                let wrap_width = desc_inner.width.max(1) as usize;
-                let wrapped_lines: usize = cleaned
-                    .lines()
-                    .map(|line| (line.len() / wrap_width).max(1))
-                    .sum();
-                let mut sb_state = ScrollbarState::new(wrapped_lines)
-                    .position(self.desc_scroll as usize);
-                frame.render_stateful_widget(
-                    Scrollbar::new(ScrollbarOrientation::VerticalRight),
-                    desc_inner,
-                    &mut sb_state,
-                );
+                if wrapped_lines > desc_inner.height {
+                    let mut sb_state = ScrollbarState::new(wrapped_lines as usize)
+                        .position(self.desc_scroll as usize);
+                    frame.render_stateful_widget(
+                        Scrollbar::new(ScrollbarOrientation::VerticalRight),
+                        desc_inner,
+                        &mut sb_state,
+                    );
+                }
             }
         }
 

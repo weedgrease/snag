@@ -28,28 +28,9 @@ pub struct ListingDetailDialog {
 
 impl ListingDetailDialog {
     pub fn new(listing: Listing, alert_name: String) -> Self {
-        let mut picker = ratatui_image::picker::Picker::from_query_stdio()
+        let picker = ratatui_image::picker::Picker::from_query_stdio()
             .unwrap_or_else(|_| ratatui_image::picker::Picker::halfblocks());
-
-        if picker.protocol_type() == ratatui_image::picker::ProtocolType::Halfblocks {
-            let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default().to_lowercase();
-            let wezterm_env = std::env::var("WEZTERM_EXECUTABLE").is_ok();
-            if term_program.contains("wezterm") || wezterm_env {
-                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
-                log::debug!(target: "snag::image", "Detected WezTerm, forcing Kitty protocol");
-            } else if term_program.contains("kitty") {
-                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
-                log::debug!(target: "snag::image", "Detected Kitty terminal");
-            } else if term_program.contains("iterm") {
-                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Iterm2);
-                log::debug!(target: "snag::image", "Detected iTerm2");
-            } else {
-                log::debug!(target: "snag::image", "Using Halfblocks fallback");
-            }
-        } else {
-            log::debug!(target: "snag::image", "Image protocol: {:?}", picker.protocol_type());
-        }
-
+        log::debug!(target: "snag::image", "Image protocol: {:?}", picker.protocol_type());
         let picker = Some(picker);
 
         let marketplace = listing.marketplace;

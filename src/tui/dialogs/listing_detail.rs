@@ -219,7 +219,7 @@ impl ListingDetailDialog {
 
             let desc_block = Block::default()
                 .title(Span::styled(
-                    " Description ",
+                    "Description ",
                     Style::default()
                         .fg(theme.fg_dim)
                         .add_modifier(Modifier::BOLD),
@@ -287,7 +287,8 @@ impl ListingDetailDialog {
 }
 
 fn strip_html(html: &str) -> String {
-    html2text::from_read(html.as_bytes(), 200).unwrap_or_else(|_| html.to_string())
+    let text = html2text::from_read(html.as_bytes(), 200).unwrap_or_else(|_| html.to_string());
+    text.trim_end().to_string()
 }
 
 pub enum ListingDetailAction {

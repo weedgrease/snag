@@ -46,6 +46,7 @@ pub struct App {
     pub seen_ids: std::collections::HashSet<String>,
     pub seen_path: std::path::PathBuf,
     last_seen_mtime: Option<std::time::SystemTime>,
+    pub image_picker: ratatui_image::picker::Picker,
 }
 
 /// The dialog currently overlaid on the TUI; only one dialog is shown at a time.
@@ -63,7 +64,7 @@ pub enum ConfirmAction {
 }
 
 impl App {
-    pub fn new() -> Result<Self> {
+    pub fn new(image_picker: ratatui_image::picker::Picker) -> Result<Self> {
         let config_path = crate::config::config_path();
         let results_path = results_path();
         let config = load_config(&config_path).unwrap_or_default();
@@ -132,6 +133,7 @@ impl App {
             seen_ids,
             seen_path,
             last_seen_mtime: None,
+            image_picker,
         })
     }
 
@@ -248,6 +250,7 @@ impl App {
                                                 let dialog = Box::new(crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                         (*listing).clone(),
                                                         alert.name.clone(),
+                                                        self.image_picker.clone(),
                                                     ));
                                                 self.active_dialog =
                                                     Some(ActiveDialog::ListingDetail(dialog));
@@ -361,6 +364,7 @@ impl App {
                                         let dialog = Box::new(crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                 *listing,
                                                 alert_name,
+                                                self.image_picker.clone(),
                                             ));
                                         self.active_dialog =
                                             Some(ActiveDialog::ListingDetail(dialog));

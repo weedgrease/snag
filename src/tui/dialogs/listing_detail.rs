@@ -24,13 +24,11 @@ pub struct ListingDetailDialog {
     detail_rx: Option<tokio::sync::oneshot::Receiver<(Option<String>, Option<String>)>>,
     picker: Option<ratatui_image::picker::Picker>,
     desc_scroll: u16,
+    created_at: std::time::Instant,
 }
 
 impl ListingDetailDialog {
-    pub fn new(listing: Listing, alert_name: String) -> Self {
-        let picker = ratatui_image::picker::Picker::from_query_stdio()
-            .unwrap_or_else(|_| ratatui_image::picker::Picker::halfblocks());
-        log::debug!(target: "snag::image", "Image protocol: {:?}", picker.protocol_type());
+    pub fn new(listing: Listing, alert_name: String, picker: ratatui_image::picker::Picker) -> Self {
         let picker = Some(picker);
 
         let marketplace = listing.marketplace;
@@ -98,6 +96,7 @@ impl ListingDetailDialog {
             detail_rx: Some(detail_rx),
             picker,
             desc_scroll: 0,
+            created_at: std::time::Instant::now(),
         }
     }
 
@@ -120,25 +119,36 @@ impl ListingDetailDialog {
     }
 
     pub fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // Poll image
-        if let Some(ref mut rx) = self.image_rx {
-            if let Ok(result) = rx.try_recv() {
-                if let Some(img) = result {
-                    if let Some(ref picker) = self.picker {
-                        self.image_state = Some(picker.new_resize_protocol(img));
-                    }
-                }
+        // Poll image (with 15s timeout)
+        if self.image_loading {
+            if self.created_at.elapsed() > std::time::Duration::from_secs(15) {
+                log::debug!(target: "snag::image", "Image load timed out");
                 self.image_loading = false;
                 self.image_rx = None;
+            } else if let Some(ref mut rx) = self.image_rx {
+                if let Ok(result) = rx.try_recv() {
+                    if let Some(img) = result {
+                        if let Some(ref picker) = self.picker {
+                            self.image_state = Some(picker.new_resize_protocol(img));
+                        }
+                    }
+                    self.image_loading = false;
+                    self.image_rx = None;
+                }
             }
         }
 
-        // Poll details (description + hires image URL)
-        if let Some(ref mut rx) = self.detail_rx {
-            if let Ok((desc, _img_url)) = rx.try_recv() {
-                self.description = desc;
+        // Poll details (with 15s timeout)
+        if self.description_loading {
+            if self.created_at.elapsed() > std::time::Duration::from_secs(15) {
                 self.description_loading = false;
                 self.detail_rx = None;
+            } else if let Some(ref mut rx) = self.detail_rx {
+                if let Ok((desc, _img_url)) = rx.try_recv() {
+                    self.description = desc;
+                    self.description_loading = false;
+                    self.detail_rx = None;
+                }
             }
         }
 

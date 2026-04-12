@@ -28,9 +28,28 @@ pub struct ListingDetailDialog {
 
 impl ListingDetailDialog {
     pub fn new(listing: Listing, alert_name: String) -> Self {
-        let picker = ratatui_image::picker::Picker::from_query_stdio()
+        let mut picker = ratatui_image::picker::Picker::from_query_stdio()
             .unwrap_or_else(|_| ratatui_image::picker::Picker::halfblocks());
-        log::debug!(target: "snag::image", "Image protocol: {:?}", picker.protocol_type());
+
+        if picker.protocol_type() == ratatui_image::picker::ProtocolType::Halfblocks {
+            let term_program = std::env::var("TERM_PROGRAM").unwrap_or_default().to_lowercase();
+            let wezterm_env = std::env::var("WEZTERM_EXECUTABLE").is_ok();
+            if term_program.contains("wezterm") || wezterm_env {
+                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+                log::debug!(target: "snag::image", "Detected WezTerm, forcing Kitty protocol");
+            } else if term_program.contains("kitty") {
+                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Kitty);
+                log::debug!(target: "snag::image", "Detected Kitty terminal");
+            } else if term_program.contains("iterm") {
+                picker.set_protocol_type(ratatui_image::picker::ProtocolType::Iterm2);
+                log::debug!(target: "snag::image", "Detected iTerm2");
+            } else {
+                log::debug!(target: "snag::image", "Using Halfblocks fallback");
+            }
+        } else {
+            log::debug!(target: "snag::image", "Image protocol: {:?}", picker.protocol_type());
+        }
+
         let picker = Some(picker);
 
         let marketplace = listing.marketplace;
@@ -46,25 +65,40 @@ impl ListingDetailDialog {
 
         tokio::spawn(async move {
             if is_ebay {
-                let details = crate::marketplace::providers::ebay::fetch_item_details(&listing_id)
-                    .await
-                    .ok()
-                    .unwrap_or((None, None));
+                let details = match crate::marketplace::providers::ebay::fetch_item_details(&listing_id).await {
+                    Ok(d) => d,
+                    Err(e) => {
+                        log::debug!(target: "snag::image", "Failed to fetch eBay details: {e}");
+                        (None, None)
+                    }
+                };
 
                 let (desc, hires_url) = details;
                 let _ = detail_tx.send((desc, hires_url.clone()));
 
                 let url_to_fetch = hires_url.or(search_image_url);
-                let img = if let Some(url) = url_to_fetch {
-                    fetch_image(&url).await.ok()
+                let img = if let Some(ref url) = url_to_fetch {
+                    match fetch_image(url).await {
+                        Ok(img) => Some(img),
+                        Err(e) => {
+                            log::debug!(target: "snag::image", "Failed to fetch image: {e}");
+                            None
+                        }
+                    }
                 } else {
                     None
                 };
                 let _ = img_tx.send(img);
             } else {
                 let _ = detail_tx.send((None, None));
-                let img = if let Some(url) = search_image_url {
-                    fetch_image(&url).await.ok()
+                let img = if let Some(ref url) = search_image_url {
+                    match fetch_image(url).await {
+                        Ok(img) => Some(img),
+                        Err(e) => {
+                            log::debug!(target: "snag::image", "Failed to fetch image: {e}");
+                            None
+                        }
+                    }
                 } else {
                     None
                 };

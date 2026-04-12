@@ -28,12 +28,17 @@ pub struct ListingDetailDialog {
 
 impl ListingDetailDialog {
     pub fn new(listing: Listing, alert_name: String) -> Self {
-        let picker = ratatui_image::picker::Picker::from_query_stdio().ok();
-        if let Some(ref p) = picker {
-            log::debug!(target: "snag::image", "Image protocol: {:?}", p.protocol_type());
+        let mut picker = ratatui_image::picker::Picker::from_query_stdio()
+            .unwrap_or_else(|_| ratatui_image::picker::Picker::halfblocks());
+
+        if picker.protocol_type() == ratatui_image::picker::ProtocolType::Halfblocks {
+            picker.set_protocol_type(ratatui_image::picker::ProtocolType::Sixel);
+            log::debug!(target: "snag::image", "Auto-detect got Halfblocks, trying Sixel");
         } else {
-            log::debug!(target: "snag::image", "No image protocol detected, using halfblock fallback");
+            log::debug!(target: "snag::image", "Image protocol: {:?}", picker.protocol_type());
         }
+
+        let picker = Some(picker);
 
         let marketplace = listing.marketplace;
         let listing_id = listing.id.clone();

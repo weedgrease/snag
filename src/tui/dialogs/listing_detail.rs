@@ -29,6 +29,11 @@ pub struct ListingDetailDialog {
 impl ListingDetailDialog {
     pub fn new(listing: Listing, alert_name: String) -> Self {
         let picker = ratatui_image::picker::Picker::from_query_stdio().ok();
+        if let Some(ref p) = picker {
+            log::debug!(target: "snag::image", "Image protocol: {:?}", p.protocol_type());
+        } else {
+            log::debug!(target: "snag::image", "No image protocol detected, using halfblock fallback");
+        }
 
         let marketplace = listing.marketplace;
         let listing_id = listing.id.clone();
@@ -316,16 +321,18 @@ impl ListingDetailDialog {
                     desc_inner,
                 );
 
-                let line_count = cleaned.lines().count() as u16;
-                if line_count > desc_inner.height {
-                    let mut sb_state = ScrollbarState::new(line_count as usize)
-                        .position(self.desc_scroll as usize);
-                    frame.render_stateful_widget(
-                        Scrollbar::new(ScrollbarOrientation::VerticalRight),
-                        desc_inner,
-                        &mut sb_state,
-                    );
-                }
+                let wrap_width = desc_inner.width.max(1) as usize;
+                let wrapped_lines: usize = cleaned
+                    .lines()
+                    .map(|line| (line.len() / wrap_width).max(1))
+                    .sum();
+                let mut sb_state = ScrollbarState::new(wrapped_lines)
+                    .position(self.desc_scroll as usize);
+                frame.render_stateful_widget(
+                    Scrollbar::new(ScrollbarOrientation::VerticalRight),
+                    desc_inner,
+                    &mut sb_state,
+                );
             }
         }
 

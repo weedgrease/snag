@@ -288,7 +288,22 @@ impl ListingDetailDialog {
 
 fn strip_html(html: &str) -> String {
     let text = html2text::from_read(html.as_bytes(), 200).unwrap_or_else(|_| html.to_string());
-    text.trim_end().to_string()
+    let mut result = String::new();
+    let mut prev_blank = false;
+    for line in text.lines() {
+        let trimmed = line.trim_end();
+        if trimmed.is_empty() {
+            if !prev_blank && !result.is_empty() {
+                result.push('\n');
+                prev_blank = true;
+            }
+        } else {
+            result.push_str(trimmed);
+            result.push('\n');
+            prev_blank = false;
+        }
+    }
+    result.trim_end().to_string()
 }
 
 pub enum ListingDetailAction {

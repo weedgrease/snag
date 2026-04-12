@@ -10,94 +10,45 @@ use ratatui::widgets::{
     Block, BorderType, Borders, Cell, Clear, Paragraph, Row, Scrollbar, ScrollbarOrientation,
     ScrollbarState, Table, Wrap,
 };
-use ratatui_image::StatefulImage;
-use ratatui_image::protocol::StatefulProtocol;
 
 pub struct ListingDetailDialog {
     pub listing: Listing,
     pub alert_name: String,
-    image_state: Option<StatefulProtocol>,
-    image_loading: bool,
-    image_rx: Option<tokio::sync::oneshot::Receiver<Option<image::DynamicImage>>>,
     description: Option<String>,
     description_loading: bool,
     detail_rx: Option<tokio::sync::oneshot::Receiver<(Option<String>, Option<String>)>>,
-    picker: Option<ratatui_image::picker::Picker>,
     desc_scroll: u16,
-    created_at: std::time::Instant,
 }
 
 impl ListingDetailDialog {
-    pub fn new(listing: Listing, alert_name: String, picker: ratatui_image::picker::Picker) -> Self {
-        log::info!(target: "snag::image", "Image protocol: {:?}, image_url: {:?}", picker.protocol_type(), listing.image_url);
-        let picker = Some(picker);
-
+    pub fn new(listing: Listing, alert_name: String) -> Self {
         let marketplace = listing.marketplace;
         let listing_id = listing.id.clone();
         let is_ebay = marketplace == crate::types::MarketplaceKind::Ebay;
 
-        // For eBay: fetch item details first (high-res image + description), then load image
-        // For others: load image directly from the search result URL
-        let (img_tx, img_rx) = tokio::sync::oneshot::channel();
         let (detail_tx, detail_rx) = tokio::sync::oneshot::channel();
-
-        let search_image_url = listing.image_url.clone();
-
         tokio::spawn(async move {
-            if is_ebay {
-                let details = match crate::marketplace::providers::ebay::fetch_item_details(&listing_id).await {
+            let result = if is_ebay {
+                match crate::marketplace::providers::ebay::fetch_item_details(&listing_id).await {
                     Ok(d) => d,
                     Err(e) => {
-                        log::debug!(target: "snag::image", "Failed to fetch eBay details: {e}");
+                        log::debug!(target: "snag::listing", "Failed to fetch eBay details: {e}");
                         (None, None)
                     }
-                };
-
-                let (desc, hires_url) = details;
-                let _ = detail_tx.send((desc, hires_url.clone()));
-
-                let url_to_fetch = hires_url.or(search_image_url);
-                let img = if let Some(ref url) = url_to_fetch {
-                    match fetch_image(url).await {
-                        Ok(img) => Some(img),
-                        Err(e) => {
-                            log::debug!(target: "snag::image", "Failed to fetch image: {e}");
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-                let _ = img_tx.send(img);
+                }
             } else {
-                let _ = detail_tx.send((None, None));
-                let img = if let Some(ref url) = search_image_url {
-                    match fetch_image(url).await {
-                        Ok(img) => Some(img),
-                        Err(e) => {
-                            log::debug!(target: "snag::image", "Failed to fetch image: {e}");
-                            None
-                        }
-                    }
-                } else {
-                    None
-                };
-                let _ = img_tx.send(img);
-            }
+                (None, None)
+            };
+            let _ = detail_tx.send(result);
         });
 
         Self {
             listing,
             alert_name,
-            image_state: None,
-            image_loading: true,
-            image_rx: Some(img_rx),
             description: None,
             description_loading: is_ebay,
             detail_rx: Some(detail_rx),
-            picker,
             desc_scroll: 0,
-            created_at: std::time::Instant::now(),
         }
     }
 
@@ -120,48 +71,21 @@ impl ListingDetailDialog {
     }
 
     pub fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
-        // Poll image (with 15s timeout)
-        if self.image_loading {
-            if self.created_at.elapsed() > std::time::Duration::from_secs(15) {
-                log::debug!(target: "snag::image", "Image load timed out");
-                self.image_loading = false;
-                self.image_rx = None;
-            } else if let Some(ref mut rx) = self.image_rx {
-                if let Ok(result) = rx.try_recv() {
-                    if let Some(img) = result {
-                        if let Some(ref picker) = self.picker {
-                            self.image_state = Some(picker.new_resize_protocol(img));
-                        }
-                    }
-                    self.image_loading = false;
-                    self.image_rx = None;
-                }
-            }
-        }
-
-        // Poll details (with 15s timeout)
-        if self.description_loading {
-            if self.created_at.elapsed() > std::time::Duration::from_secs(15) {
+        if let Some(ref mut rx) = self.detail_rx {
+            if let Ok((desc, _img_url)) = rx.try_recv() {
+                self.description = desc;
                 self.description_loading = false;
                 self.detail_rx = None;
-            } else if let Some(ref mut rx) = self.detail_rx {
-                if let Ok((desc, _img_url)) = rx.try_recv() {
-                    self.description = desc;
-                    self.description_loading = false;
-                    self.detail_rx = None;
-                }
             }
         }
 
-        let has_image = self.image_loading || self.image_state.is_some();
         let fetched_desc = self
             .description
             .as_ref()
             .or(self.listing.description.as_ref());
         let has_desc = self.description_loading || fetched_desc.is_some();
 
-        // Count detail rows for tight layout
-        let mut detail_rows: u16 = 2; // marketplace + found (always present)
+        let mut detail_rows: u16 = 2; // marketplace + found
         if self.listing.price.is_some() {
             detail_rows += 1;
         }
@@ -174,13 +98,12 @@ impl ListingDetailDialog {
         if self.listing.posted_at.is_some() {
             detail_rows += 1;
         }
-        detail_rows += 1; // alert row
+        detail_rows += 1; // alert
 
-        let image_rows: u16 = if has_image { 14 } else { 0 };
         let desc_rows: u16 = if has_desc { 8 } else { 0 };
-        let fixed_rows: u16 = 2 + detail_rows + desc_rows + 2 + 1 + image_rows;
+        let fixed_rows: u16 = 2 + detail_rows + desc_rows + 2 + 1; // title + table + desc + url + hint
 
-        let dialog_width = area.width.saturating_sub(6).min(100);
+        let dialog_width = area.width.saturating_sub(6).min(90);
         let dialog_height = (fixed_rows + 2).min(area.height.saturating_sub(2));
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
@@ -208,9 +131,6 @@ impl ListingDetailDialog {
         frame.render_widget(block, dialog_area);
 
         let mut constraints = vec![];
-        if has_image {
-            constraints.push(Constraint::Length(image_rows));
-        }
         constraints.push(Constraint::Length(2)); // title
         constraints.push(Constraint::Length(detail_rows)); // details
         if has_desc {
@@ -226,22 +146,6 @@ impl ListingDetailDialog {
 
         let mut idx = 0;
 
-        // Image
-        if has_image {
-            if let Some(ref mut state) = self.image_state {
-                frame.render_stateful_widget(StatefulImage::default(), chunks[idx], state);
-            } else if self.image_loading {
-                frame.render_widget(
-                    Paragraph::new(Span::styled(
-                        "Loading image...",
-                        Style::default().fg(theme.fg_dim),
-                    )),
-                    chunks[idx],
-                );
-            }
-            idx += 1;
-        }
-
         // Title
         frame.render_widget(
             Paragraph::new(Span::styled(
@@ -253,7 +157,7 @@ impl ListingDetailDialog {
         );
         idx += 1;
 
-        // Details table (tight)
+        // Details table
         let dim = Style::default().fg(theme.fg_dim);
         let fg = Style::default().fg(theme.fg);
         let mut rows: Vec<Row> = vec![];
@@ -374,24 +278,12 @@ impl ListingDetailDialog {
         // Hint
         frame.render_widget(
             Paragraph::new(Span::styled(
-                "[o] open  [↑↓] scroll description  [Esc] close",
+                "[o] open in browser  [↑↓] scroll description  [Esc] close",
                 Style::default().fg(theme.fg_dim),
             )),
             chunks[idx],
         );
     }
-}
-
-async fn fetch_image(url: &str) -> anyhow::Result<image::DynamicImage> {
-    let bytes = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()?
-        .get(url)
-        .send()
-        .await?
-        .bytes()
-        .await?;
-    Ok(image::load_from_memory(&bytes)?)
 }
 
 fn strip_html(html: &str) -> String {

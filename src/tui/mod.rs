@@ -26,10 +26,6 @@ pub async fn run() -> Result<()> {
         original_hook(panic_info);
     }));
 
-    let image_picker = ratatui_image::picker::Picker::from_query_stdio()
-        .unwrap_or_else(|_| ratatui_image::picker::Picker::halfblocks());
-    log::debug!(target: "snag::image", "Image protocol: {:?}", image_picker.protocol_type());
-
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -37,7 +33,7 @@ pub async fn run() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = app::App::new(image_picker)?;
+    let mut app = app::App::new()?;
     let result = app.run(&mut terminal);
     let pending_update = app.pending_update.clone();
 

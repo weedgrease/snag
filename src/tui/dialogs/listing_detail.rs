@@ -29,6 +29,7 @@ pub struct ListingDetailDialog {
 
 impl ListingDetailDialog {
     pub fn new(listing: Listing, alert_name: String, picker: ratatui_image::picker::Picker) -> Self {
+        log::info!(target: "snag::image", "Image protocol: {:?}, image_url: {:?}", picker.protocol_type(), listing.image_url);
         let picker = Some(picker);
 
         let marketplace = listing.marketplace;

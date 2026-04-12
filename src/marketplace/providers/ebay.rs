@@ -174,9 +174,12 @@ struct Image {
     image_url: Option<String>,
 }
 
-pub async fn fetch_item_description(item_id: &str) -> anyhow::Result<Option<String>> {
+/// Fetches full item details (description and high-res image) from the eBay getItem endpoint.
+pub async fn fetch_item_details(
+    item_id: &str,
+) -> anyhow::Result<(Option<String>, Option<String>)> {
     if !crate::credentials::ebay_credentials_configured() {
-        return Ok(None);
+        return Ok((None, None));
     }
 
     let provider = EbayMarketplace::new();
@@ -192,7 +195,13 @@ pub async fn fetch_item_description(item_id: &str) -> anyhow::Result<Option<Stri
         .await?;
 
     if !response.status().is_success() {
-        return Ok(None);
+        return Ok((None, None));
+    }
+
+    #[derive(serde::Deserialize)]
+    struct ItemImage {
+        #[serde(rename = "imageUrl")]
+        image_url: Option<String>,
     }
 
     #[derive(serde::Deserialize)]
@@ -200,10 +209,13 @@ pub async fn fetch_item_description(item_id: &str) -> anyhow::Result<Option<Stri
         description: Option<String>,
         #[serde(rename = "shortDescription")]
         short_description: Option<String>,
+        image: Option<ItemImage>,
     }
 
     let detail: ItemDetail = response.json().await?;
-    Ok(detail.description.or(detail.short_description))
+    let desc = detail.description.or(detail.short_description);
+    let image_url = detail.image.and_then(|i| i.image_url);
+    Ok((desc, image_url))
 }
 
 #[async_trait]

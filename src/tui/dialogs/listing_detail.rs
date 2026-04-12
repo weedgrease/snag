@@ -21,7 +21,7 @@ pub struct ListingDetailDialog {
     image_rx: Option<tokio::sync::oneshot::Receiver<Option<image::DynamicImage>>>,
     description: Option<String>,
     description_loading: bool,
-    description_rx: Option<tokio::sync::oneshot::Receiver<Option<String>>>,
+    detail_rx: Option<tokio::sync::oneshot::Receiver<(Option<String>, Option<String>)>>,
     picker: Option<ratatui_image::picker::Picker>,
     desc_scroll: u16,
 }
@@ -30,31 +30,43 @@ impl ListingDetailDialog {
     pub fn new(listing: Listing, alert_name: String) -> Self {
         let picker = ratatui_image::picker::Picker::from_query_stdio().ok();
 
-        let (img_tx, img_rx) = tokio::sync::oneshot::channel();
-        let image_url = listing.image_url.clone();
-        tokio::spawn(async move {
-            let result = if let Some(url) = image_url {
-                fetch_image(&url).await.ok()
-            } else {
-                None
-            };
-            let _ = img_tx.send(result);
-        });
-
-        let (desc_tx, desc_rx) = tokio::sync::oneshot::channel();
-        let listing_id = listing.id.clone();
         let marketplace = listing.marketplace;
-        let description_loading = marketplace == crate::types::MarketplaceKind::Ebay;
+        let listing_id = listing.id.clone();
+        let is_ebay = marketplace == crate::types::MarketplaceKind::Ebay;
+
+        // For eBay: fetch item details first (high-res image + description), then load image
+        // For others: load image directly from the search result URL
+        let (img_tx, img_rx) = tokio::sync::oneshot::channel();
+        let (detail_tx, detail_rx) = tokio::sync::oneshot::channel();
+
+        let search_image_url = listing.image_url.clone();
+
         tokio::spawn(async move {
-            let result = if marketplace == crate::types::MarketplaceKind::Ebay {
-                crate::marketplace::providers::ebay::fetch_item_description(&listing_id)
+            if is_ebay {
+                let details = crate::marketplace::providers::ebay::fetch_item_details(&listing_id)
                     .await
                     .ok()
-                    .flatten()
+                    .unwrap_or((None, None));
+
+                let (desc, hires_url) = details;
+                let _ = detail_tx.send((desc, hires_url.clone()));
+
+                let url_to_fetch = hires_url.or(search_image_url);
+                let img = if let Some(url) = url_to_fetch {
+                    fetch_image(&url).await.ok()
+                } else {
+                    None
+                };
+                let _ = img_tx.send(img);
             } else {
-                None
-            };
-            let _ = desc_tx.send(result);
+                let _ = detail_tx.send((None, None));
+                let img = if let Some(url) = search_image_url {
+                    fetch_image(&url).await.ok()
+                } else {
+                    None
+                };
+                let _ = img_tx.send(img);
+            }
         });
 
         Self {
@@ -64,8 +76,8 @@ impl ListingDetailDialog {
             image_loading: true,
             image_rx: Some(img_rx),
             description: None,
-            description_loading,
-            description_rx: Some(desc_rx),
+            description_loading: is_ebay,
+            detail_rx: Some(detail_rx),
             picker,
             desc_scroll: 0,
         }
@@ -90,6 +102,7 @@ impl ListingDetailDialog {
     }
 
     pub fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        // Poll image
         if let Some(ref mut rx) = self.image_rx {
             if let Ok(result) = rx.try_recv() {
                 if let Some(img) = result {
@@ -102,25 +115,45 @@ impl ListingDetailDialog {
             }
         }
 
-        if let Some(ref mut rx) = self.description_rx {
-            if let Ok(result) = rx.try_recv() {
-                self.description = result;
+        // Poll details (description + hires image URL)
+        if let Some(ref mut rx) = self.detail_rx {
+            if let Ok((desc, _img_url)) = rx.try_recv() {
+                self.description = desc;
                 self.description_loading = false;
-                self.description_rx = None;
+                self.detail_rx = None;
             }
         }
 
-        let show_image = self.image_loading || self.image_state.is_some();
-        let image_height: u16 = if show_image { 20 } else { 0 };
+        let has_image = self.image_loading || self.image_state.is_some();
+        let fetched_desc = self
+            .description
+            .as_ref()
+            .or(self.listing.description.as_ref());
+        let has_desc = self.description_loading || fetched_desc.is_some();
 
-        let fetched_desc = self.description.as_ref().or(self.listing.description.as_ref());
-        let show_desc = self.description_loading || fetched_desc.is_some();
-        let desc_height: u16 = if show_desc { 8 } else { 0 };
+        // Count detail rows for tight layout
+        let mut detail_rows: u16 = 2; // marketplace + found (always present)
+        if self.listing.price.is_some() {
+            detail_rows += 1;
+        }
+        if self.listing.location.is_some() {
+            detail_rows += 1;
+        }
+        if self.listing.condition.is_some() {
+            detail_rows += 1;
+        }
+        if self.listing.posted_at.is_some() {
+            detail_rows += 1;
+        }
+        detail_rows += 1; // alert row
 
-        let dialog_width = area.width.saturating_sub(6).min(90);
-        let base_height: u16 = 18;
-        let dialog_height =
-            (base_height + image_height + desc_height).min(area.height.saturating_sub(4));
+        let image_rows: u16 = if has_image { 20 } else { 0 };
+        let desc_rows: u16 = if has_desc { 8 } else { 0 };
+        let fixed_rows: u16 = 2 + detail_rows + 2 + 1; // title + table + url + hint
+
+        let dialog_width = area.width.saturating_sub(6).min(100);
+        let dialog_height = (fixed_rows + image_rows + desc_rows + 2)
+            .min(area.height.saturating_sub(2));
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
         let y = area.y + (area.height.saturating_sub(dialog_height)) / 2;
@@ -146,17 +179,19 @@ impl ListingDetailDialog {
         let inner = block.inner(dialog_area);
         frame.render_widget(block, dialog_area);
 
+        // Tight layout — every section gets exactly what it needs
         let mut constraints = vec![];
-        if show_image {
-            constraints.push(Constraint::Length(image_height));
+        if has_image {
+            constraints.push(Constraint::Length(image_rows));
         }
         constraints.push(Constraint::Length(2)); // title
-        constraints.push(Constraint::Min(1)); // details table
-        if show_desc {
-            constraints.push(Constraint::Length(desc_height));
+        constraints.push(Constraint::Length(detail_rows)); // details (exact)
+        if has_desc {
+            constraints.push(Constraint::Length(desc_rows));
         }
         constraints.push(Constraint::Length(2)); // URL
         constraints.push(Constraint::Length(1)); // hint
+        constraints.push(Constraint::Min(0)); // absorb any leftover
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -166,30 +201,33 @@ impl ListingDetailDialog {
         let mut idx = 0;
 
         // Image
-        if show_image {
-            let image_area = chunks[idx];
-            idx += 1;
+        if has_image {
             if let Some(ref mut state) = self.image_state {
-                frame.render_stateful_widget(StatefulImage::default(), image_area, state);
+                frame.render_stateful_widget(StatefulImage::default(), chunks[idx], state);
             } else if self.image_loading {
-                let loading = Paragraph::new(Span::styled(
-                    "Loading image...",
-                    Style::default().fg(theme.fg_dim),
-                ));
-                frame.render_widget(loading, image_area);
+                frame.render_widget(
+                    Paragraph::new(Span::styled(
+                        "Loading image...",
+                        Style::default().fg(theme.fg_dim),
+                    )),
+                    chunks[idx],
+                );
             }
+            idx += 1;
         }
 
         // Title
-        let title = Paragraph::new(Span::styled(
-            &self.listing.title,
-            Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
-        ))
-        .wrap(Wrap { trim: false });
-        frame.render_widget(title, chunks[idx]);
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                &self.listing.title,
+                Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
+            ))
+            .wrap(Wrap { trim: false }),
+            chunks[idx],
+        );
         idx += 1;
 
-        // Details table
+        // Details table (tight)
         let dim = Style::default().fg(theme.fg_dim);
         let fg = Style::default().fg(theme.fg);
         let mut rows: Vec<Row> = vec![];
@@ -200,34 +238,29 @@ impl ListingDetailDialog {
                 Cell::from(format!("${:.2}", price)).style(Style::default().fg(theme.price)),
             ]));
         }
-
         rows.push(Row::new(vec![
             Cell::from("Marketplace").style(dim),
             Cell::from(self.listing.marketplace.to_string())
                 .style(Style::default().fg(theme.marketplace)),
         ]));
-
         if let Some(ref loc) = self.listing.location {
             rows.push(Row::new(vec![
                 Cell::from("Location").style(dim),
                 Cell::from(loc.as_str()).style(fg),
             ]));
         }
-
         if let Some(ref cond) = self.listing.condition {
             rows.push(Row::new(vec![
                 Cell::from("Condition").style(dim),
                 Cell::from(cond.to_string()).style(fg),
             ]));
         }
-
         if let Some(ref posted) = self.listing.posted_at {
             rows.push(Row::new(vec![
                 Cell::from("Posted").style(dim),
                 Cell::from(posted.format("%Y-%m-%d %H:%M").to_string()).style(fg),
             ]));
         }
-
         rows.push(Row::new(vec![
             Cell::from("Found").style(dim),
             Cell::from(
@@ -238,25 +271,28 @@ impl ListingDetailDialog {
             )
             .style(fg),
         ]));
-
         rows.push(Row::new(vec![
             Cell::from("Alert").style(dim),
             Cell::from(self.alert_name.as_str()).style(fg),
         ]));
 
-        let widths = [Constraint::Length(16), Constraint::Min(10)];
-        frame.render_widget(Table::new(rows, widths), chunks[idx]);
+        frame.render_widget(
+            Table::new(rows, [Constraint::Length(16), Constraint::Min(10)]),
+            chunks[idx],
+        );
         idx += 1;
 
-        // Description section with border and scroll
-        if show_desc {
+        // Description
+        if has_desc {
             let desc_area = chunks[idx];
             idx += 1;
 
             let desc_block = Block::default()
                 .title(Span::styled(
                     " Description ",
-                    Style::default().fg(theme.fg_dim),
+                    Style::default()
+                        .fg(theme.fg_dim)
+                        .add_modifier(Modifier::BOLD),
                 ))
                 .borders(Borders::TOP)
                 .border_style(Style::default().fg(theme.border))
@@ -275,37 +311,46 @@ impl ListingDetailDialog {
                 );
             } else if let Some(desc) = fetched_desc {
                 let cleaned = strip_html(desc);
-                let desc_para = Paragraph::new(cleaned.as_str())
-                    .style(Style::default().fg(theme.fg))
-                    .wrap(Wrap { trim: false })
-                    .scroll((self.desc_scroll, 0));
-                frame.render_widget(desc_para, desc_inner);
+                frame.render_widget(
+                    Paragraph::new(cleaned.as_str())
+                        .style(Style::default().fg(theme.fg))
+                        .wrap(Wrap { trim: false })
+                        .scroll((self.desc_scroll, 0)),
+                    desc_inner,
+                );
 
-                let content_lines = cleaned.lines().count() as u16;
-                if content_lines > desc_inner.height {
-                    let mut scrollbar_state = ScrollbarState::new(content_lines as usize)
+                let line_count = cleaned.lines().count() as u16;
+                if line_count > desc_inner.height {
+                    let mut sb_state = ScrollbarState::new(line_count as usize)
                         .position(self.desc_scroll as usize);
-                    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-                    frame.render_stateful_widget(scrollbar, desc_inner, &mut scrollbar_state);
+                    frame.render_stateful_widget(
+                        Scrollbar::new(ScrollbarOrientation::VerticalRight),
+                        desc_inner,
+                        &mut sb_state,
+                    );
                 }
             }
         }
 
         // URL
-        let url = Paragraph::new(Line::from(vec![
-            Span::styled("URL  ", dim),
-            Span::styled(&self.listing.url, Style::default().fg(theme.accent)),
-        ]))
-        .wrap(Wrap { trim: false });
-        frame.render_widget(url, chunks[idx]);
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled("URL  ", dim),
+                Span::styled(&self.listing.url, Style::default().fg(theme.accent)),
+            ]))
+            .wrap(Wrap { trim: false }),
+            chunks[idx],
+        );
         idx += 1;
 
         // Hint
-        let hint = Paragraph::new(Span::styled(
-            "[o] open  [↑↓] scroll description  [Esc] close",
-            Style::default().fg(theme.fg_dim),
-        ));
-        frame.render_widget(hint, chunks[idx]);
+        frame.render_widget(
+            Paragraph::new(Span::styled(
+                "[o] open  [↑↓] scroll description  [Esc] close",
+                Style::default().fg(theme.fg_dim),
+            )),
+            chunks[idx],
+        );
     }
 }
 

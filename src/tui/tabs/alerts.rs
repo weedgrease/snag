@@ -13,6 +13,43 @@ use ratatui::widgets::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ListingSort {
+    Newest,
+    PriceLow,
+    PriceHigh,
+}
+
+impl ListingSort {
+    pub fn next(&self) -> Self {
+        match self {
+            Self::Newest => Self::PriceLow,
+            Self::PriceLow => Self::PriceHigh,
+            Self::PriceHigh => Self::Newest,
+        }
+    }
+
+    pub fn label(&self) -> &str {
+        match self {
+            Self::Newest => "Newest",
+            Self::PriceLow => "Price ↑",
+            Self::PriceHigh => "Price ↓",
+        }
+    }
+
+    pub fn sort(&self, listings: &mut [&crate::types::Listing]) {
+        match self {
+            Self::Newest => listings.sort_by(|a, b| b.found_at.cmp(&a.found_at)),
+            Self::PriceLow => listings.sort_by(|a, b| {
+                a.price.unwrap_or(f64::MAX).partial_cmp(&b.price.unwrap_or(f64::MAX)).unwrap_or(std::cmp::Ordering::Equal)
+            }),
+            Self::PriceHigh => listings.sort_by(|a, b| {
+                b.price.unwrap_or(0.0).partial_cmp(&a.price.unwrap_or(0.0)).unwrap_or(std::cmp::Ordering::Equal)
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MarketplaceFilter {
     All,
     Facebook,
@@ -53,6 +90,7 @@ pub struct AlertsTab {
     pub listing_focus: bool,
     pub listing_count: usize,
     pub listing_filter: MarketplaceFilter,
+    pub listing_sort: ListingSort,
 }
 
 impl Default for AlertsTab {
@@ -75,6 +113,7 @@ impl AlertsTab {
             listing_focus: false,
             listing_count: 0,
             listing_filter: MarketplaceFilter::All,
+            listing_sort: ListingSort::Newest,
         }
     }
 
@@ -106,6 +145,11 @@ impl AlertsTab {
                 }
                 KeyCode::Char('m') => {
                     self.listing_filter = self.listing_filter.next();
+                    self.listing_selected = 0;
+                    self.listing_state.select(Some(0));
+                }
+                KeyCode::Char('s') => {
+                    self.listing_sort = self.listing_sort.next();
                     self.listing_selected = 0;
                     self.listing_state.select(Some(0));
                 }
@@ -518,13 +562,14 @@ impl AlertsTab {
         frame.render_widget(divider, chunks[2]);
 
         // Listings section.
-        let alert_listings: Vec<&crate::types::Listing> = results
+        let mut alert_listings: Vec<&crate::types::Listing> = results
             .iter()
             .filter(|r| r.alert_id == alert.id)
             .flat_map(|r| r.listings.iter())
             .filter(|l| alert.marketplaces.contains(&l.marketplace))
             .filter(|l| self.listing_filter.matches(&l.marketplace))
             .collect();
+        self.listing_sort.sort(&mut alert_listings);
         self.listing_count = alert_listings.len();
 
         let listings_area = chunks[3];
@@ -543,11 +588,13 @@ impl AlertsTab {
             } else {
                 format!(" [{}]", self.listing_filter.label())
             };
+            let sort_label = format!(" {}", self.listing_sort.label());
             let header = Paragraph::new(Span::styled(
                 format!(
-                    "Listings ({}{})  [m] filter",
+                    "Listings ({}{}{})",
                     alert_listings.len(),
                     filter_label,
+                    sort_label,
                 ),
                 header_style,
             ));

@@ -12,12 +12,13 @@ use ratatui::widgets::{
     ScrollbarOrientation, ScrollbarState, Table, Wrap,
 };
 
-use super::alerts::MarketplaceFilter;
+use super::alerts::{ListingSort, MarketplaceFilter};
 
 pub struct ResultsTab {
     pub selected: usize,
     pub list_state: ListState,
     pub filter: MarketplaceFilter,
+    pub sort: ListingSort,
 }
 
 struct FlatListing {
@@ -40,6 +41,7 @@ impl ResultsTab {
             selected: 0,
             list_state,
             filter: MarketplaceFilter::All,
+            sort: ListingSort::Newest,
         }
     }
 
@@ -75,6 +77,38 @@ impl ResultsTab {
         flat
     }
 
+    fn sort_flat(&self, flat: &mut [FlatListing], results: &[AlertResult]) {
+        match self.sort {
+            ListingSort::Newest => {
+                flat.sort_by(|a, b| {
+                    let la = &results[a.result_idx].listings[a.listing_idx];
+                    let lb = &results[b.result_idx].listings[b.listing_idx];
+                    lb.found_at.cmp(&la.found_at)
+                });
+            }
+            ListingSort::PriceLow => {
+                flat.sort_by(|a, b| {
+                    let la = &results[a.result_idx].listings[a.listing_idx];
+                    let lb = &results[b.result_idx].listings[b.listing_idx];
+                    la.price
+                        .unwrap_or(f64::MAX)
+                        .partial_cmp(&lb.price.unwrap_or(f64::MAX))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+            }
+            ListingSort::PriceHigh => {
+                flat.sort_by(|a, b| {
+                    let la = &results[a.result_idx].listings[a.listing_idx];
+                    let lb = &results[b.result_idx].listings[b.listing_idx];
+                    lb.price
+                        .unwrap_or(0.0)
+                        .partial_cmp(&la.price.unwrap_or(0.0))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+            }
+        }
+    }
+
     pub fn handle_key(
         &mut self,
         key: KeyEvent,
@@ -82,7 +116,8 @@ impl ResultsTab {
         seen_ids: &mut std::collections::HashSet<String>,
         config: &AppConfig,
     ) -> Option<ResultsAction> {
-        let flat = Self::flatten(results, config, &self.filter);
+        let mut flat = Self::flatten(results, config, &self.filter);
+        self.sort_flat(&mut flat, results);
         let count = flat.len();
 
         match key.code {
@@ -131,6 +166,11 @@ impl ResultsTab {
                 self.selected = 0;
                 self.list_state.select(Some(0));
             }
+            KeyCode::Char('s') => {
+                self.sort = self.sort.next();
+                self.selected = 0;
+                self.list_state.select(Some(0));
+            }
             _ => {}
         }
 
@@ -146,7 +186,8 @@ impl ResultsTab {
         seen_ids: &std::collections::HashSet<String>,
         config: &AppConfig,
     ) {
-        let flat = Self::flatten(results, config, &self.filter);
+        let mut flat = Self::flatten(results, config, &self.filter);
+        self.sort_flat(&mut flat, results);
 
         let max_title_len = flat
             .iter()
@@ -218,10 +259,14 @@ impl ResultsTab {
         let list = List::new(items).block(
             Block::default()
                 .title(Span::styled(
-                    if self.filter == MarketplaceFilter::All {
-                        " Results ".to_string()
-                    } else {
-                        format!(" Results [{}] ", self.filter.label())
+                    {
+                        let filter = if self.filter == MarketplaceFilter::All {
+                            String::new()
+                        } else {
+                            format!(" [{}]", self.filter.label())
+                        };
+                        let sort = format!(" {}", self.sort.label());
+                        format!(" Results{}{} ", filter, sort)
                     },
                     Style::default()
                         .fg(theme.accent)

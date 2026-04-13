@@ -767,6 +767,7 @@ impl App {
                     vec![
                         (" Enter ", "Details"),
                         (" m ", "Filter"),
+                        (" s ", "Sort"),
                         (" c ", "Clear"),
                         (" Esc ", "Back"),
                         (" q ", "Quit"),
@@ -788,6 +789,7 @@ impl App {
                 (" o ", "Open"),
                 (" m ", "Mark read"),
                 (" f ", "Filter"),
+                (" s ", "Sort"),
                 (" c ", "Clear"),
                 (" q ", "Quit"),
             ],

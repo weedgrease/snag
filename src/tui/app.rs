@@ -232,13 +232,15 @@ impl App {
                                         listing_idx,
                                     ) => {
                                         if let Some(alert) = self.config.alerts.get(alert_idx) {
-                                            let alert_listings: Vec<&crate::types::Listing> = self
+                                            let mut alert_listings: Vec<&crate::types::Listing> = self
                                                 .results
                                                 .iter()
                                                 .filter(|r| r.alert_id == alert.id)
                                                 .flat_map(|r| r.listings.iter())
                                                 .filter(|l| alert.marketplaces.contains(&l.marketplace))
+                                                .filter(|l| self.alerts_tab.listing_filter.matches(&l.marketplace))
                                                 .collect();
+                                            self.alerts_tab.listing_sort.sort(&mut alert_listings);
                                             if let Some(listing) = alert_listings.get(listing_idx) {
                                                 self.seen_ids.insert(listing.id.clone());
                                                 let _ = crate::daemon::results::save_seen(

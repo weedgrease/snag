@@ -245,42 +245,65 @@ impl Marketplace for EbayMarketplace {
         }
 
         let token = self.get_access_token().await?;
-
-        let keywords = alert.keywords.join(" ");
-        let limit = alert.max_results.unwrap_or(50).min(200);
+        let limit_per_query = alert.max_results.unwrap_or(50).min(200);
         let filter = self.build_filter(alert);
 
-        log::info!(target: "snag::ebay", "Searching eBay: '{}' (limit={}, filter={})", keywords, limit, if filter.is_empty() { "none" } else { &filter });
+        let mut all_items: Vec<ItemSummary> = vec![];
+        let mut seen_ids: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-        let mut request = self
-            .client
-            .get(SEARCH_URL)
-            .header("Authorization", format!("Bearer {token}"))
-            .header("X-EBAY-C-MARKETPLACE-ID", "EBAY_US")
-            .query(&[("q", keywords.as_str()), ("limit", &limit.to_string())]);
+        for keyword_phrase in &alert.keywords {
+            let phrase = keyword_phrase.trim();
+            if phrase.is_empty() {
+                continue;
+            }
 
-        if !filter.is_empty() {
-            request = request.query(&[("filter", filter.as_str())]);
+            log::info!(target: "snag::ebay", "Searching eBay: '{}' (limit={}, filter={})",
+                phrase, limit_per_query, if filter.is_empty() { "none" } else { &filter });
+
+            let mut request = self
+                .client
+                .get(SEARCH_URL)
+                .header("Authorization", format!("Bearer {token}"))
+                .header("X-EBAY-C-MARKETPLACE-ID", "EBAY_US")
+                .query(&[
+                    ("q", phrase),
+                    ("limit", &limit_per_query.to_string()),
+                ]);
+
+            if !filter.is_empty() {
+                request = request.query(&[("filter", filter.as_str())]);
+            }
+
+            let response = request.send().await.context("failed to search eBay")?;
+
+            let status = response.status();
+            log::debug!(target: "snag::ebay", "Search API status: {}", status);
+
+            if !status.is_success() {
+                let body = response.text().await.unwrap_or_default();
+                log::error!(target: "snag::ebay", "Search failed for '{}' ({}): {}", phrase, status,
+                    body.char_indices().nth(500).map(|(i, _)| &body[..i]).unwrap_or(&body));
+                continue;
+            }
+
+            let body: SearchResponse = response
+                .json()
+                .await
+                .context("failed to parse eBay search response")?;
+
+            log::info!(target: "snag::ebay", "eBay '{}': {} of {} total", phrase, body.item_summaries.len(), body.total);
+
+            for item in body.item_summaries {
+                if let Some(ref id) = item.item_id {
+                    if seen_ids.insert(id.clone()) {
+                        all_items.push(item);
+                    }
+                }
+            }
         }
 
-        let response = request.send().await.context("failed to search eBay")?;
-
-        let status = response.status();
-        log::debug!(target: "snag::ebay", "Search API status: {}", status);
-
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            log::error!(target: "snag::ebay", "Search failed ({}): {}", status,
-                body.char_indices().nth(500).map(|(i, _)| &body[..i]).unwrap_or(&body));
-            anyhow::bail!("eBay search failed ({})", status);
-        }
-
-        let body: SearchResponse = response
-            .json()
-            .await
-            .context("failed to parse eBay search response")?;
-
-        log::info!(target: "snag::ebay", "eBay returned {} of {} total listings", body.item_summaries.len(), body.total);
+        log::info!(target: "snag::ebay", "eBay total: {} unique listings from {} keyword phrases",
+            all_items.len(), alert.keywords.len());
 
         let now = Utc::now();
         let exclude_lower: Vec<String> = alert
@@ -291,7 +314,7 @@ impl Marketplace for EbayMarketplace {
 
         let mut listings = vec![];
 
-        for item in body.item_summaries {
+        for item in all_items {
             let id = match item.item_id {
                 Some(id) => id,
                 None => continue,

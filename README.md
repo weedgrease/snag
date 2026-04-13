@@ -34,7 +34,7 @@ cd snag && cargo install --path .
 ### Uninstall
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/weedgrease/snag/main/scripts/uninstall.sh | bash
+snag uninstall
 ```
 
 ## Quick Start

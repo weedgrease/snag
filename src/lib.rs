@@ -9,4 +9,5 @@ pub mod notifier;
 pub mod scheduler;
 pub mod tui;
 pub mod types;
+pub mod uninstall;
 pub mod update;

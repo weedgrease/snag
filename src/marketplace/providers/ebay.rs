@@ -139,6 +139,8 @@ impl EbayMarketplace {
 struct SearchResponse {
     #[serde(default, rename = "itemSummaries")]
     item_summaries: Vec<ItemSummary>,
+    #[serde(default)]
+    total: u32,
 }
 
 #[derive(Deserialize)]
@@ -248,7 +250,7 @@ impl Marketplace for EbayMarketplace {
         let limit = alert.max_results.unwrap_or(50).min(200);
         let filter = self.build_filter(alert);
 
-        log::info!(target: "snag::ebay", "Searching eBay: '{}'", keywords);
+        log::info!(target: "snag::ebay", "Searching eBay: '{}' (limit={}, filter={})", keywords, limit, if filter.is_empty() { "none" } else { &filter });
 
         let mut request = self
             .client
@@ -278,7 +280,7 @@ impl Marketplace for EbayMarketplace {
             .await
             .context("failed to parse eBay search response")?;
 
-        log::info!(target: "snag::ebay", "eBay returned {} listings", body.item_summaries.len());
+        log::info!(target: "snag::ebay", "eBay returned {} of {} total listings", body.item_summaries.len(), body.total);
 
         let now = Utc::now();
         let exclude_lower: Vec<String> = alert

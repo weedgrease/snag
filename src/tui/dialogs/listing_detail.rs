@@ -101,8 +101,8 @@ impl ListingDetailDialog {
         detail_rows += 1; // alert
 
 
-        let dialog_width = area.width.saturating_sub(4);
-        let dialog_height = area.height.saturating_sub(2);
+        let dialog_width = (area.width * 3 / 4).max(60);
+        let dialog_height = (area.height * 3 / 4).max(20);
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
         let y = area.y + (area.height.saturating_sub(dialog_height)) / 2;

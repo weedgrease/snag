@@ -100,11 +100,9 @@ impl ListingDetailDialog {
         }
         detail_rows += 1; // alert
 
-        let desc_rows: u16 = if has_desc { 8 } else { 0 };
-        let fixed_rows: u16 = 2 + detail_rows + desc_rows + 2 + 1; // title + table + desc + url + hint
 
-        let dialog_width = area.width.saturating_sub(6).min(90);
-        let dialog_height = (fixed_rows + 2).min(area.height.saturating_sub(2));
+        let dialog_width = area.width.saturating_sub(4);
+        let dialog_height = area.height.saturating_sub(2);
 
         let x = area.x + (area.width.saturating_sub(dialog_width)) / 2;
         let y = area.y + (area.height.saturating_sub(dialog_height)) / 2;
@@ -134,7 +132,7 @@ impl ListingDetailDialog {
         constraints.push(Constraint::Length(2)); // title
         constraints.push(Constraint::Length(detail_rows)); // details
         if has_desc {
-            constraints.push(Constraint::Length(desc_rows));
+            constraints.push(Constraint::Min(4)); // description fills remaining space
         }
         constraints.push(Constraint::Length(2)); // URL
         constraints.push(Constraint::Length(1)); // hint

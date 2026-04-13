@@ -44,7 +44,7 @@ curl -fsSL https://github.com/weedgrease/snag/releases/latest/download/snag-x86_
 1. Launch the TUI: `snag`
 2. Press `n` to create a new alert
 3. Fill in keywords, marketplace, price range, location
-4. Press `Enter` to save -- snag begins checking automatically
+4. Press `s` to save -- snag begins checking automatically
 5. New listings appear in the Alerts detail pane and the Results tab
 6. Press `o` to open a listing in your browser
 
@@ -108,7 +108,9 @@ Credentials are stored in `~/.config/snag/credentials.toml` (file permissions re
 | `f`     | Force check now             |
 | `l`/`Enter` | Focus listings pane     |
 | `Esc`   | Return to alert list        |
-| `c`     | Clear alert results (in listings pane) |
+| `m`     | Filter by marketplace (listings pane) |
+| `s`     | Sort listings (listings pane) |
+| `c`     | Clear alert results (listings pane) |
 
 ### Results Tab
 
@@ -117,6 +119,8 @@ Credentials are stored in `~/.config/snag/credentials.toml` (file permissions re
 | `j`/`k` | Navigate results            |
 | `o`     | Open listing in browser     |
 | `m`     | Mark as read                |
+| `f`     | Filter by marketplace       |
+| `s`     | Sort listings               |
 | `Enter` | View listing details        |
 | `c`     | Clear all results           |
 

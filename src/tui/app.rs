@@ -191,7 +191,10 @@ impl App {
                             {
                                 match action {
                                     crate::tui::tabs::alerts::AlertsAction::ConfigChanged => {
-                                        let _ = save_config(&self.config, &self.config_path);
+                                        if let Err(e) = save_config(&self.config, &self.config_path)
+                                        {
+                                            log::error!(target: "snag::app", "failed to save config: {e}");
+                                        }
                                         if let Some(ref tx) = self.config_tx {
                                             let _ = tx.send(self.config.clone());
                                         }
@@ -232,21 +235,29 @@ impl App {
                                         listing_idx,
                                     ) => {
                                         if let Some(alert) = self.config.alerts.get(alert_idx) {
-                                            let mut alert_listings: Vec<&crate::types::Listing> = self
-                                                .results
-                                                .iter()
-                                                .filter(|r| r.alert_id == alert.id)
-                                                .flat_map(|r| r.listings.iter())
-                                                .filter(|l| alert.marketplaces.contains(&l.marketplace))
-                                                .filter(|l| self.alerts_tab.listing_filter.matches(&l.marketplace))
-                                                .collect();
+                                            let mut alert_listings: Vec<&crate::types::Listing> =
+                                                self.results
+                                                    .iter()
+                                                    .filter(|r| r.alert_id == alert.id)
+                                                    .flat_map(|r| r.listings.iter())
+                                                    .filter(|l| {
+                                                        alert.marketplaces.contains(&l.marketplace)
+                                                    })
+                                                    .filter(|l| {
+                                                        self.alerts_tab
+                                                            .listing_filter
+                                                            .matches(&l.marketplace)
+                                                    })
+                                                    .collect();
                                             self.alerts_tab.listing_sort.sort(&mut alert_listings);
                                             if let Some(listing) = alert_listings.get(listing_idx) {
                                                 self.seen_ids.insert(listing.id.clone());
-                                                let _ = crate::daemon::results::save_seen(
+                                                if let Err(e) = crate::daemon::results::save_seen(
                                                     &self.seen_ids,
                                                     &self.seen_path,
-                                                );
+                                                ) {
+                                                    log::error!(target: "snag::app", "failed to save seen: {e}");
+                                                }
                                                 let dialog = Box::new(crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                         (*listing).clone(),
                                                         alert.name.clone(),
@@ -308,13 +319,15 @@ impl App {
                                         if let Some(alert) = self.config.alerts.get(idx) {
                                             let alert_id = alert.id;
                                             self.results.retain(|r| r.alert_id != alert_id);
-                                            let _ = crate::daemon::results::save_results(
+                                            if let Err(e) = crate::daemon::results::save_results(
                                                 &self.results,
                                                 &self.results_path,
-                                            );
+                                            ) {
+                                                log::error!(target: "snag::app", "failed to save results: {e}");
+                                            }
                                             log::info!(target: "snag::app", "Cleared results for alert '{}'", alert.name);
                                             if self.results_tab.selected
-                                                >= self.results.len().max(1) - 1
+                                                >= self.results.len().saturating_sub(1)
                                             {
                                                 self.results_tab.selected = 0;
                                                 self.results_tab.list_state.select(Some(0));
@@ -334,38 +347,56 @@ impl App {
                                 match action {
                                     crate::tui::tabs::results::ResultsAction::OpenUrl(url) => {
                                         let _ = open::that(&url);
-                                        let _ = crate::daemon::results::save_seen(
+                                        if let Err(e) = crate::daemon::results::save_seen(
                                             &self.seen_ids,
                                             &self.seen_path,
-                                        );
+                                        ) {
+                                            log::error!(target: "snag::app", "failed to save seen: {e}");
+                                        }
                                     }
                                     crate::tui::tabs::results::ResultsAction::ResultsChanged => {
-                                        let _ = crate::daemon::results::save_results(
+                                        if let Err(e) = crate::daemon::results::save_results(
                                             &self.results,
                                             &self.results_path,
-                                        );
+                                        ) {
+                                            log::error!(target: "snag::app", "failed to save results: {e}");
+                                        }
                                     }
                                     crate::tui::tabs::results::ResultsAction::SeenChanged => {
-                                        let _ = crate::daemon::results::save_seen(
+                                        if let Err(e) = crate::daemon::results::save_seen(
                                             &self.seen_ids,
                                             &self.seen_path,
-                                        );
+                                        ) {
+                                            log::error!(target: "snag::app", "failed to save seen: {e}");
+                                        }
                                     }
                                     crate::tui::tabs::results::ResultsAction::ViewListing(
                                         listing,
                                         alert_name,
                                     ) => {
                                         self.seen_ids.insert(listing.id.clone());
-                                        let _ = crate::daemon::results::save_seen(
+                                        if let Err(e) = crate::daemon::results::save_seen(
                                             &self.seen_ids,
                                             &self.seen_path,
-                                        );
+                                        ) {
+                                            log::error!(target: "snag::app", "failed to save seen: {e}");
+                                        }
                                         let dialog = Box::new(crate::tui::dialogs::listing_detail::ListingDetailDialog::new(
                                                 *listing,
                                                 alert_name,
                                             ));
                                         self.active_dialog =
                                             Some(ActiveDialog::ListingDetail(dialog));
+                                    }
+                                    crate::tui::tabs::results::ResultsAction::ClearAll => {
+                                        let dialog = ConfirmDialog::new(
+                                            "Clear Results".to_string(),
+                                            "Clear all results?".to_string(),
+                                        );
+                                        self.active_dialog = Some(ActiveDialog::Confirm(
+                                            dialog,
+                                            ConfirmAction::ClearResults,
+                                        ));
                                     }
                                 }
                             }
@@ -376,7 +407,9 @@ impl App {
                             {
                                 match action {
                                         crate::tui::tabs::settings::SettingsAction::ConfigChanged => {
-                                            let _ = save_config(&self.config, &self.config_path);
+                                            if let Err(e) = save_config(&self.config, &self.config_path) {
+                                                log::error!(target: "snag::app", "failed to save config: {e}");
+                                            }
                                             if let Some(ref tx) = self.config_tx {
                                                 let _ = tx.send(self.config.clone());
                                             }
@@ -449,7 +482,7 @@ impl App {
                         self.results = new_results;
                     }
                     self.last_results_mtime = results_mtime;
-                    if self.results_tab.selected >= self.results.len().max(1) - 1 {
+                    if self.results_tab.selected >= self.results.len().saturating_sub(1) {
                         self.results_tab.selected = 0;
                         self.results_tab.list_state.select(Some(0));
                     }
@@ -511,7 +544,9 @@ impl App {
                         } else {
                             self.config.alerts.push(alert);
                         }
-                        let _ = save_config(&self.config, &self.config_path);
+                        if let Err(e) = save_config(&self.config, &self.config_path) {
+                            log::error!(target: "snag::app", "failed to save config: {e}");
+                        }
                         if let Some(ref tx) = self.config_tx {
                             let _ = tx.send(self.config.clone());
                         }
@@ -540,10 +575,12 @@ impl App {
                             ) => {
                                 let _ = open::that(&url);
                                 self.seen_ids.insert(listing_id);
-                                let _ = crate::daemon::results::save_seen(
+                                if let Err(e) = crate::daemon::results::save_seen(
                                     &self.seen_ids,
                                     &self.seen_path,
-                                );
+                                ) {
+                                    log::error!(target: "snag::app", "failed to save seen: {e}");
+                                }
                             }
                         }
                         Some(DialogResult::<()>::Cancel)
@@ -593,7 +630,9 @@ impl App {
                         ConfirmAction::DeleteAlert(idx) => {
                             if idx < self.config.alerts.len() {
                                 self.config.alerts.remove(idx);
-                                let _ = save_config(&self.config, &self.config_path);
+                                if let Err(e) = save_config(&self.config, &self.config_path) {
+                                    log::error!(target: "snag::app", "failed to save config: {e}");
+                                }
                                 if let Some(ref tx) = self.config_tx {
                                     let _ = tx.send(self.config.clone());
                                 }
@@ -611,10 +650,12 @@ impl App {
                         }
                         ConfirmAction::ClearResults => {
                             self.results.clear();
-                            let _ = crate::daemon::results::save_results(
+                            if let Err(e) = crate::daemon::results::save_results(
                                 &self.results,
                                 &self.results_path,
-                            );
+                            ) {
+                                log::error!(target: "snag::app", "failed to save results: {e}");
+                            }
                         }
                         ConfirmAction::PerformUpdate => {
                             self.pending_update = self.update_info.clone();

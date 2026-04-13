@@ -39,7 +39,9 @@ fn save_store(store: &CredentialStore) -> Result<()> {
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o600);
-        std::fs::set_permissions(&path, perms).ok();
+        if let Err(e) = std::fs::set_permissions(&path, perms) {
+            log::warn!(target: "snag::credentials", "failed to set permissions on credentials file: {e}");
+        }
     }
 
     Ok(())
@@ -63,6 +65,5 @@ pub fn get_credential(key: &str) -> Result<Option<String>> {
 /// Returns `true` only when both `ebay_client_id` and `ebay_client_secret` are present.
 pub fn ebay_credentials_configured() -> bool {
     let store = load_store();
-    store.entries.contains_key("ebay_client_id")
-        && store.entries.contains_key("ebay_client_secret")
+    store.entries.contains_key("ebay_client_id") && store.entries.contains_key("ebay_client_secret")
 }

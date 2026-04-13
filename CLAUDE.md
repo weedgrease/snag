@@ -122,5 +122,5 @@ The `release.yml` workflow builds binaries for Linux (x86_64, aarch64) and macOS
 - Facebook GraphQL doc_ids are hardcoded and can break if Facebook changes their internal API
 - eBay Browse API requires developer account registration
 - No checksum verification on self-update downloads
-- `app.rs` is large (~650 lines) — business logic should be extracted for testability
+- `app.rs` is the largest file — business logic should be extracted for testability
 - Test coverage is integration-level only; unit tests for scheduler logic and API parameter building are needed

@@ -59,6 +59,7 @@ impl SettingsTab {
             match key.code {
                 KeyCode::Esc => {
                     self.editing = false;
+                    self.edit_buffer.clear();
                 }
                 KeyCode::Enter => {
                     self.apply_edit(config);

@@ -112,7 +112,7 @@ impl ResultsTab {
     pub fn handle_key(
         &mut self,
         key: KeyEvent,
-        results: &mut Vec<AlertResult>,
+        results: &mut [AlertResult],
         seen_ids: &mut std::collections::HashSet<String>,
         config: &AppConfig,
     ) -> Option<ResultsAction> {
@@ -156,10 +156,7 @@ impl ResultsTab {
                 }
             }
             KeyCode::Char('c') => {
-                results.clear();
-                self.selected = 0;
-                self.list_state.select(Some(0));
-                return Some(ResultsAction::ResultsChanged);
+                return Some(ResultsAction::ClearAll);
             }
             KeyCode::Char('f') => {
                 self.filter = self.filter.next();
@@ -441,4 +438,5 @@ pub enum ResultsAction {
     ResultsChanged,
     SeenChanged,
     ViewListing(Box<crate::types::Listing>, String),
+    ClearAll,
 }

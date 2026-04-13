@@ -37,7 +37,7 @@ No ornamental elements. Every visual signal has a purpose.
 | Status bar BG  | Dracula Current Line   | `#44475a` | Bottom status bar background               |
 | Status bar FG  | Dracula Foreground     | `#f8f8f2` | Status bar text                            |
 
-All 10 Dracula palette colors are in use.
+All 11 Dracula palette colors are in use.
 
 ## TUI Layout
 
@@ -64,7 +64,7 @@ All 10 Dracula palette colors are in use.
 
 ### Tab content layouts
 
-**Alerts / Results tabs**: Horizontal split-pane. Left sidebar (alert/listing list) + right detail panel. Focus indicator via cyan border on active pane.
+**Alerts / Results tabs**: Horizontal split-pane. Left sidebar (alert/listing list) + right detail panel. Focus indicator via accent (Purple) border on active pane.
 
 **Settings tab**: Single panel with two sections (Defaults, Marketplaces). Arrow cursor (`>`) on selected field. Inline editing with underline indicator.
 
@@ -113,7 +113,7 @@ Scrollable lists with `List` widget. `Scrollbar` (vertical right) appears when c
 Centered overlay on `frame.area()`. Same `Block` + `BorderType::Rounded` pattern. Captures all keyboard input while active. `Enter` submits, `Esc` cancels.
 
 ### Status Bar
-Single row. First segment is inverted (fg on accent bg) showing global navigation. Remaining segments are accent-colored keys with dim descriptions, separated by `|` in border color.
+Single row. First segment is inverted (fg on accent bg) showing global navigation. Remaining segments are accent-colored keys with dim descriptions, separated by `│` in border color.
 
 ### Text Truncation
 Long text is truncated with `…` (Unicode ellipsis) via `truncate_str()` to prevent layout overflow. Applied to alert names and listing titles in list views.

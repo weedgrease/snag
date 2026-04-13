@@ -81,12 +81,24 @@ cargo test
 
 ## Release Process
 
-1. Update version in `Cargo.toml`
-2. Commit: `chore: bump version to 0.X.Y`
-3. Tag: `git tag v0.X.Y`
-4. Push tag: `git push origin v0.X.Y`
+1. Go to **Actions** → **Prepare Release** on GitHub
+2. Click **Run workflow**, enter the version (e.g., `0.2.0`, no `v` prefix)
+3. The workflow bumps `Cargo.toml`, commits, creates a `v0.2.0` tag, and pushes
 
-The `release.yml` workflow builds binaries for Linux (x86_64, aarch64) and macOS (x86_64, aarch64), then creates a GitHub release with artifacts.
+The tag push automatically triggers `release.yml`, which builds binaries for Linux (x86_64, aarch64) and macOS (x86_64, aarch64), then creates a GitHub Release with artifacts.
+
+To release manually instead:
+
+```bash
+# 1. Bump version
+sed -i 's/^version = ".*"/version = "0.2.0"/' Cargo.toml
+cargo check  # updates Cargo.lock
+git add Cargo.toml Cargo.lock
+git commit -m "chore: bump version to 0.2.0"
+# 2. Tag and push
+git tag v0.2.0
+git push origin main v0.2.0
+```
 
 ## Adding a New Marketplace Provider
 

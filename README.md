@@ -16,27 +16,19 @@ snag monitors Facebook Marketplace and eBay for new listings matching your searc
 
 ## Installation
 
+### Quick install (Linux / macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/weedgrease/snag/main/scripts/install.sh | bash
+```
+
+Detects your OS and architecture, downloads the latest release, and installs to `/usr/local/bin`.
+
 ### From source
 
 ```bash
-cargo install --path .
-```
-
-### From releases
-
-**Linux (x86_64)**:
-```bash
-curl -fsSL https://github.com/weedgrease/snag/releases/latest/download/snag-x86_64-unknown-linux-gnu.tar.gz | tar xz && sudo mv snag /usr/local/bin/
-```
-
-**macOS (Apple Silicon)**:
-```bash
-curl -fsSL https://github.com/weedgrease/snag/releases/latest/download/snag-aarch64-apple-darwin.tar.gz | tar xz && sudo mv snag /usr/local/bin/
-```
-
-**macOS (Intel)**:
-```bash
-curl -fsSL https://github.com/weedgrease/snag/releases/latest/download/snag-x86_64-apple-darwin.tar.gz | tar xz && sudo mv snag /usr/local/bin/
+git clone https://github.com/weedgrease/snag
+cd snag && cargo install --path .
 ```
 
 ## Quick Start

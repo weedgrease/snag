@@ -177,9 +177,7 @@ struct Image {
 }
 
 /// Fetches full item details (description and high-res image) from the eBay getItem endpoint.
-pub async fn fetch_item_details(
-    item_id: &str,
-) -> anyhow::Result<(Option<String>, Option<String>)> {
+pub async fn fetch_item_details(item_id: &str) -> anyhow::Result<(Option<String>, Option<String>)> {
     if !crate::credentials::ebay_credentials_configured() {
         return Ok((None, None));
     }
@@ -265,10 +263,7 @@ impl Marketplace for EbayMarketplace {
                 .get(SEARCH_URL)
                 .header("Authorization", format!("Bearer {token}"))
                 .header("X-EBAY-C-MARKETPLACE-ID", "EBAY_US")
-                .query(&[
-                    ("q", phrase),
-                    ("limit", &limit_per_query.to_string()),
-                ]);
+                .query(&[("q", phrase), ("limit", &limit_per_query.to_string())]);
 
             if !filter.is_empty() {
                 request = request.query(&[("filter", filter.as_str())]);

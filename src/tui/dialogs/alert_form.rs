@@ -341,25 +341,23 @@ impl AlertFormDialog {
                 }
                 DialogResult::Continue
             }
-            KeyCode::Enter => {
-                match self.selected_field {
-                    1 => {
-                        self.mp_selecting = true;
-                        self.mp_cursor = 0;
-                        DialogResult::Continue
-                    }
-                    8 => {
-                        self.cycle_condition();
-                        DialogResult::Continue
-                    }
-                    _ => {
-                        self.editing = true;
-                        let field = &mut self.fields[self.selected_field];
-                        field.cursor = field.value.len();
-                        DialogResult::Continue
-                    }
+            KeyCode::Enter => match self.selected_field {
+                1 => {
+                    self.mp_selecting = true;
+                    self.mp_cursor = 0;
+                    DialogResult::Continue
                 }
-            }
+                8 => {
+                    self.cycle_condition();
+                    DialogResult::Continue
+                }
+                _ => {
+                    self.editing = true;
+                    let field = &mut self.fields[self.selected_field];
+                    field.cursor = field.value.len();
+                    DialogResult::Continue
+                }
+            },
             KeyCode::Char('s') => match self.to_alert() {
                 Some(alert) => DialogResult::Submit(alert),
                 None => DialogResult::Continue,
@@ -442,7 +440,11 @@ impl AlertFormDialog {
                 Style::default().fg(theme.fg_dim)
             };
 
-            let cursor = if is_selected && !self.mp_selecting { "▸ " } else { "  " };
+            let cursor = if is_selected && !self.mp_selecting {
+                "▸ "
+            } else {
+                "  "
+            };
 
             if i == 1 {
                 if self.mp_selecting {
@@ -469,14 +471,20 @@ impl AlertFormDialog {
 
                     let fb_line = Line::from(vec![
                         Span::styled(fb_cursor, Style::default().fg(theme.accent)),
-                        Span::styled(format!("[{}] ", fb_check), Style::default().fg(theme.enabled)),
+                        Span::styled(
+                            format!("[{}] ", fb_check),
+                            Style::default().fg(theme.enabled),
+                        ),
                         Span::styled("Facebook Marketplace", fb_style),
                     ]);
                     frame.render_widget(Paragraph::new(fb_line), mp_chunks[0]);
 
                     let ebay_line = Line::from(vec![
                         Span::styled(ebay_cursor, Style::default().fg(theme.accent)),
-                        Span::styled(format!("[{}] ", ebay_check), Style::default().fg(theme.enabled)),
+                        Span::styled(
+                            format!("[{}] ", ebay_check),
+                            Style::default().fg(theme.enabled),
+                        ),
                         Span::styled("eBay", ebay_style),
                     ]);
                     frame.render_widget(Paragraph::new(ebay_line), mp_chunks[1]);

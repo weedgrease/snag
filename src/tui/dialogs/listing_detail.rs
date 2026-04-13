@@ -100,7 +100,6 @@ impl ListingDetailDialog {
         }
         detail_rows += 1; // alert
 
-
         let dialog_width = (area.width * 3 / 4).max(60);
         let dialog_height = (area.height * 3 / 4).max(20);
 
@@ -191,13 +190,7 @@ impl ListingDetailDialog {
         }
         rows.push(Row::new(vec![
             Cell::from("Found").style(dim),
-            Cell::from(
-                self.listing
-                    .found_at
-                    .format("%Y-%m-%d %H:%M")
-                    .to_string(),
-            )
-            .style(fg),
+            Cell::from(self.listing.found_at.format("%Y-%m-%d %H:%M").to_string()).style(fg),
         ]));
         rows.push(Row::new(vec![
             Cell::from("Alert").style(dim),

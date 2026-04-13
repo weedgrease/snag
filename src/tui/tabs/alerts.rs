@@ -40,10 +40,16 @@ impl ListingSort {
         match self {
             Self::Newest => listings.sort_by(|a, b| b.found_at.cmp(&a.found_at)),
             Self::PriceLow => listings.sort_by(|a, b| {
-                a.price.unwrap_or(f64::MAX).partial_cmp(&b.price.unwrap_or(f64::MAX)).unwrap_or(std::cmp::Ordering::Equal)
+                a.price
+                    .unwrap_or(f64::MAX)
+                    .partial_cmp(&b.price.unwrap_or(f64::MAX))
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }),
             Self::PriceHigh => listings.sort_by(|a, b| {
-                b.price.unwrap_or(0.0).partial_cmp(&a.price.unwrap_or(0.0)).unwrap_or(std::cmp::Ordering::Equal)
+                b.price
+                    .unwrap_or(0.0)
+                    .partial_cmp(&a.price.unwrap_or(0.0))
+                    .unwrap_or(std::cmp::Ordering::Equal)
             }),
         }
     }

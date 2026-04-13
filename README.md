@@ -31,6 +31,12 @@ git clone https://github.com/weedgrease/snag
 cd snag && cargo install --path .
 ```
 
+### Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/weedgrease/snag/main/scripts/uninstall.sh | bash
+```
+
 ## Quick Start
 
 1. Launch the TUI: `snag`

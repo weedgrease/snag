@@ -12,6 +12,39 @@ use ratatui::widgets::{
     ScrollbarOrientation, ScrollbarState, Table,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarketplaceFilter {
+    All,
+    Facebook,
+    Ebay,
+}
+
+impl MarketplaceFilter {
+    pub fn next(&self) -> Self {
+        match self {
+            Self::All => Self::Facebook,
+            Self::Facebook => Self::Ebay,
+            Self::Ebay => Self::All,
+        }
+    }
+
+    pub fn label(&self) -> &str {
+        match self {
+            Self::All => "All",
+            Self::Facebook => "Facebook",
+            Self::Ebay => "eBay",
+        }
+    }
+
+    pub fn matches(&self, kind: &crate::types::MarketplaceKind) -> bool {
+        match self {
+            Self::All => true,
+            Self::Facebook => *kind == crate::types::MarketplaceKind::FacebookMarketplace,
+            Self::Ebay => *kind == crate::types::MarketplaceKind::Ebay,
+        }
+    }
+}
+
 pub struct AlertsTab {
     pub selected: usize,
     pub list_state: ListState,
@@ -19,6 +52,7 @@ pub struct AlertsTab {
     pub listing_state: ListState,
     pub listing_focus: bool,
     pub listing_count: usize,
+    pub listing_filter: MarketplaceFilter,
 }
 
 impl Default for AlertsTab {
@@ -40,6 +74,7 @@ impl AlertsTab {
             listing_state,
             listing_focus: false,
             listing_count: 0,
+            listing_filter: MarketplaceFilter::All,
         }
     }
 
@@ -68,6 +103,11 @@ impl AlertsTab {
                 }
                 KeyCode::Esc => {
                     self.listing_focus = false;
+                }
+                KeyCode::Char('m') => {
+                    self.listing_filter = self.listing_filter.next();
+                    self.listing_selected = 0;
+                    self.listing_state.select(Some(0));
                 }
                 KeyCode::Char('c') => {
                     self.listing_selected = 0;
@@ -483,6 +523,7 @@ impl AlertsTab {
             .filter(|r| r.alert_id == alert.id)
             .flat_map(|r| r.listings.iter())
             .filter(|l| alert.marketplaces.contains(&l.marketplace))
+            .filter(|l| self.listing_filter.matches(&l.marketplace))
             .collect();
         self.listing_count = alert_listings.len();
 
@@ -497,10 +538,16 @@ impl AlertsTab {
                     .fg(theme.fg_dim)
                     .add_modifier(Modifier::BOLD)
             };
+            let filter_label = if self.listing_filter == MarketplaceFilter::All {
+                String::new()
+            } else {
+                format!(" [{}]", self.listing_filter.label())
+            };
             let header = Paragraph::new(Span::styled(
                 format!(
-                    "Listings ({})  [Enter/l] browse  [Esc] back",
-                    alert_listings.len()
+                    "Listings ({}{})  [m] filter",
+                    alert_listings.len(),
+                    filter_label,
                 ),
                 header_style,
             ));

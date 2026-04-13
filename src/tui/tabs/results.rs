@@ -12,9 +12,12 @@ use ratatui::widgets::{
     ScrollbarOrientation, ScrollbarState, Table, Wrap,
 };
 
+use super::alerts::MarketplaceFilter;
+
 pub struct ResultsTab {
     pub selected: usize,
     pub list_state: ListState,
+    pub filter: MarketplaceFilter,
 }
 
 struct FlatListing {
@@ -36,10 +39,15 @@ impl ResultsTab {
         Self {
             selected: 0,
             list_state,
+            filter: MarketplaceFilter::All,
         }
     }
 
-    fn flatten(results: &[AlertResult], config: &AppConfig) -> Vec<FlatListing> {
+    fn flatten(
+        results: &[AlertResult],
+        config: &AppConfig,
+        filter: &MarketplaceFilter,
+    ) -> Vec<FlatListing> {
         let mut flat = vec![];
         for (ri, result) in results.iter().enumerate().rev() {
             let active_marketplaces = config
@@ -49,10 +57,13 @@ impl ResultsTab {
                 .map(|a| &a.marketplaces);
 
             for (li, listing) in result.listings.iter().enumerate() {
-                if let Some(mps) = active_marketplaces {
-                    if !mps.contains(&listing.marketplace) {
-                        continue;
-                    }
+                if let Some(mps) = active_marketplaces
+                    && !mps.contains(&listing.marketplace)
+                {
+                    continue;
+                }
+                if !filter.matches(&listing.marketplace) {
+                    continue;
                 }
                 flat.push(FlatListing {
                     alert_name: result.alert_name.clone(),
@@ -71,7 +82,7 @@ impl ResultsTab {
         seen_ids: &mut std::collections::HashSet<String>,
         config: &AppConfig,
     ) -> Option<ResultsAction> {
-        let flat = Self::flatten(results, config);
+        let flat = Self::flatten(results, config, &self.filter);
         let count = flat.len();
 
         match key.code {
@@ -115,6 +126,11 @@ impl ResultsTab {
                 self.list_state.select(Some(0));
                 return Some(ResultsAction::ResultsChanged);
             }
+            KeyCode::Char('f') => {
+                self.filter = self.filter.next();
+                self.selected = 0;
+                self.list_state.select(Some(0));
+            }
             _ => {}
         }
 
@@ -130,7 +146,7 @@ impl ResultsTab {
         seen_ids: &std::collections::HashSet<String>,
         config: &AppConfig,
     ) {
-        let flat = Self::flatten(results, config);
+        let flat = Self::flatten(results, config, &self.filter);
 
         let max_title_len = flat
             .iter()
@@ -202,7 +218,11 @@ impl ResultsTab {
         let list = List::new(items).block(
             Block::default()
                 .title(Span::styled(
-                    " Results ",
+                    if self.filter == MarketplaceFilter::All {
+                        " Results ".to_string()
+                    } else {
+                        format!(" Results [{}] ", self.filter.label())
+                    },
                     Style::default()
                         .fg(theme.accent)
                         .add_modifier(Modifier::BOLD),

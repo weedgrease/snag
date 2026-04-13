@@ -766,6 +766,7 @@ impl App {
                 if self.alerts_tab.listing_focus {
                     vec![
                         (" Enter ", "Details"),
+                        (" m ", "Filter"),
                         (" c ", "Clear"),
                         (" Esc ", "Back"),
                         (" q ", "Quit"),
@@ -786,6 +787,7 @@ impl App {
                 (" Enter ", "Details"),
                 (" o ", "Open"),
                 (" m ", "Mark read"),
+                (" f ", "Filter"),
                 (" c ", "Clear"),
                 (" q ", "Quit"),
             ],

@@ -19,7 +19,7 @@ snag monitors Facebook Marketplace and eBay for new listings matching your searc
 ### Quick install (Linux / macOS)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/weedgrease/snag/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/weedgrease/snag/master/scripts/install.sh | bash
 ```
 
 Detects your OS and architecture, downloads the latest release, and installs to `/usr/local/bin`.
